@@ -1,0 +1,8 @@
+summary: Edge commit test
+discover:
+  how: fmf
+environment:
+  TEST_CASE: edge-commit
+execute:
+    script: ./test.sh
+
