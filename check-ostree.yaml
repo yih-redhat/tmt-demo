@@ -1,0 +1,1358 @@
+---
+- hosts: ostree_guest
+  become: no
+  vars:
+    fdo_credential: "false"
+    embedded_container: "false"
+    sysroot_ro: "false"
+    total_counter: "0"
+    failed_counter: "0"
+    firewall_feature: "false"
+    ignition: "false"
+    test_custom_dirs_files: "false"
+
+  tasks:
+    # current target host's IP address
+    - debug: var=ansible_all_ipv4_addresses
+    - debug: var=ansible_facts['distribution_version']
+    - debug: var=ansible_facts['distribution']
+    - debug: var=ansible_facts['architecture']
+
+    # check BIOS or UEFI
+    - name: check bios or uefi
+      stat:
+        path: /sys/firmware/efi
+
+    # check secure boot status if it's enabled
+    - name: check secure boot status
+      command: mokutil --sb-state
+      ignore_errors: yes
+
+    # check tpm device
+    - name: check tpm device
+      stat:
+        path: /dev/tpm0
+      ignore_errors: yes
+      when: fdo_credential == "true"
+
+    - name: check partition size
+      command: df -h
+      ignore_errors: yes
+      become: yes
+
+    - name: check disk partition table
+      command: fdisk -l
+      ignore_errors: yes
+      become: yes
+
+    - name: check rpm-ostree status
+      command: rpm-ostree status
+      ignore_errors: yes
+
+    # case: check rt kernel installed after upgrade
+    - name: check installed kernel
+      command: uname -r
+      register: result_kernel
+
+    - name: check rt kernel installed
+      block:
+        - assert:
+            that:
+              - "'rt' in result_kernel.stdout"
+            fail_msg: "rt kernel not installed, ostree upgrade might be failed"
+            success_msg: "rt kernel installed in ostree upgrade"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: "'rt' in result_kernel.stdout"
+
+    # first installed or upgraded
+    - name: determine which stage the checking is running on
+      shell: rpm-ostree status --json | jq '.deployments | length'
+      register: result_stage
+
+    - set_fact:
+        checking_stage: "{{ result_stage.stdout }}"
+
+    # case: check fdo onboarding status
+    # after fdo onboarding finished, /boot/device-credentials will be moved to /etc/device-credentials
+    - name: check if fdo onboarding completed successfully
+      block:
+        - name: wait until the file /etc/device-credentials is present before continuing
+          wait_for:
+            path: /etc/device-credentials
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: fdo_credential == "true"
+
+    # case: check ostree commit correctly updated
+    - name: get deployed ostree commit
+      shell: rpm-ostree status --json | jq -r '.deployments[0].checksum'
+      register: result_commit
+
+    - name: make a json result
+      set_fact:
+        deploy_commit: "{{ result_commit.stdout }}"
+
+    - name: check commit deployed and built
+      block:
+        - assert:
+            that:
+              - deploy_commit == ostree_commit
+            fail_msg: "deployed ostree commit is not commit built by osbuild-composer"
+            success_msg: "successful building and deployment"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    # case: check ostree ref
+    - name: check ostree ref
+      shell: rpm-ostree status --json | jq -r '.deployments[0].origin'
+      register: result_ref
+
+    - name: check ostree ref deployed
+      block:
+        - assert:
+            that:
+              - result_ref.stdout == ostree_ref
+            fail_msg: "deployed ostree ref failed"
+            success_msg: "ostree ref successful building and deployment"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    # case from bug: https://bugzilla.redhat.com/show_bug.cgi?id=1848453
+    - name: check ostree-remount status
+      command: systemctl is-active ostree-remount.service
+      register: result_remount
+
+    - name: ostree-remount should be started
+      block:
+        - assert:
+            that:
+              - result_remount.stdout == "active"
+            fail_msg: "ostree-remount is not started by default"
+            success_msg: "starting ostree-remount successful"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    - name: set mount point device name
+      command: findmnt -r -o SOURCE -n /sysroot
+      register: result_sysroot_source
+
+    - set_fact:
+        device_name: "{{ result_sysroot_source.stdout }}"
+
+    # case: check pv format
+    - name: check pv format
+      shell: pvs --reportformat json | jq .report[0].pv[0].pv_fmt -r
+      become: yes
+      register: result_pv_fmt
+      when: "'/dev/mapper/rootvg-rootlv' in result_sysroot_source.stdout"
+
+    - name: "pv format should be lvm2"
+      block:
+        - assert:
+            that:
+              - result_pv_fmt.stdout == "lvm2"
+            fail_msg: "pv format is not lvm2"
+            success_msg: "pv format is lvm2"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: "'/dev/mapper/rootvg-rootlv' in result_sysroot_source.stdout"
+
+    # case: check pv size
+    - name: check pv size
+      shell: pvs --reportformat json | jq .report[0].pv[0].pv_size -r
+      become: yes
+      register: result_pv_size
+      when: "'/dev/mapper/rootvg-rootlv' in result_sysroot_source.stdout"
+
+    # simplified installer uses coreos-installer to grow fs to 19G
+    - name: "pv size should bigger than 19G"
+      block:
+        - assert:
+            that:
+              - "'19' in result_pv_size.stdout"
+            fail_msg: "pv size is not bigger than 19G"
+            success_msg: "pv size is bigger than 19G"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - "'/dev/mapper/rootvg-rootlv' in result_sysroot_source.stdout"
+        - fdo_credential == "true"
+        - ansible_facts['distribution'] == 'RedHat'
+
+    # on fedora, it grows to 18.49G
+    - name: "pv size should bigger than 18G"
+      block:
+        - assert:
+            that:
+              - "'18' in result_pv_size.stdout"
+            fail_msg: "pv size is not bigger than 18G"
+            success_msg: "pv size is bigger than 18G"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - "'/dev/mapper/rootvg-rootlv' in result_sysroot_source.stdout"
+        - fdo_credential == "true"
+        - ansible_facts['distribution'] == "Fedora"
+
+    # raw image does not have coreos-installer to grow fs to 19G
+    - name: "pv size should keep at 9G for raw image"
+      block:
+        - assert:
+            that:
+              - "'9' in result_pv_size.stdout"
+            fail_msg: "pv size does not keep at 9G"
+            success_msg: "pv size keeps at 9G"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - "'/dev/mapper/rootvg-rootlv' in result_sysroot_source.stdout"
+        - fdo_credential == "false"
+
+    # case: check /sysroot lv size
+    - name: check sysroot lv size
+      shell: df -h | grep sysroot
+      register: result_sysroot_lv_size
+      when: "'/dev/mapper/rootvg-rootlv' in result_sysroot_source.stdout"
+
+    - name: "/sysroot lv size should be 9G"
+      block:
+        - assert:
+            that:
+              - "'9.0G' in result_sysroot_lv_size.stdout"
+            fail_msg: "pv size is not 9G"
+            success_msg: "pv size is 9G"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - "'/dev/mapper/rootvg-rootlv' in result_sysroot_source.stdout"
+        - ansible_facts['distribution'] == 'RedHat'
+
+    # lv size on fedora is 7.8G, https://github.com/osbuild/osbuild-composer/issues/3529
+    - name: "/sysroot lv size should be 7.8G on fedora"
+      block:
+        - assert:
+            that:
+              - "'7.8G' in result_sysroot_lv_size.stdout"
+            fail_msg: "lv size is not 7.8G"
+            success_msg: "lv size is 7.8G"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - "'/dev/mapper/rootvg-rootlv' in result_sysroot_source.stdout"
+        - ansible_facts['distribution'] == "Fedora"
+
+    # case: check /sysroot mount status
+    - name: check /sysroot mount status
+      shell: findmnt -r -o OPTIONS -n /sysroot | awk -F "," '{print $1}'
+      register: result_sysroot_mount_status
+
+    - name: /sysroot should be mount with rw permission
+      block:
+        - assert:
+            that:
+              - result_sysroot_mount_status.stdout == "rw"
+            fail_msg: "/sysroot is not mounted with rw permission"
+            success_msg: "/sysroot is mounted with rw permission"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: sysroot_ro == "false"
+
+    # https://fedoraproject.org/wiki/Changes/Silverblue_Kinoite_readonly_sysroot
+    - name: /sysroot should be mount with ro permission on RHEL 9.2 and Fedora 37 above
+      block:
+        - assert:
+            that:
+              - result_sysroot_mount_status.stdout == "ro"
+            fail_msg: "/sysroot is not mounted with ro permission"
+            success_msg: "/sysroot is mounted with ro permission"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: sysroot_ro == "true"
+
+    # case: check /var mount point
+    - name: check /var mount point
+      command: findmnt -r -o SOURCE -n /var
+      register: result_var_mount_point
+
+    - name: "/var should be mounted on {{ device_name }}[/ostree/deploy/{{ os_name }}/var]"
+      block:
+        - assert:
+            that:
+              - result_var_mount_point.stdout == "{{ device_name }}[/ostree/deploy/{{ os_name }}/var]"
+            fail_msg: "/var does not mount on {{ device_name }}[/ostree/deploy/{{ os_name }}/var]"
+            success_msg: "/var mounts on {{ device_name }}[/ostree/deploy/{{ os_name }}/var]"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    # case: check /var mount status
+    - name: check /var mount status
+      shell: findmnt -r -o OPTIONS -n /var | awk -F "," '{print $1}'
+      register: result_var_mount_status
+
+    - name: /var should be mount with rw permission
+      block:
+        - assert:
+            that:
+              - result_var_mount_status.stdout == "rw"
+            fail_msg: "/var is not mounted with rw permission"
+            success_msg: "/var is mounted with rw permission"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    # case: check /usr mount point
+    - name: check /usr mount point
+      command: findmnt -r -o SOURCE -n /usr
+      register: result_usr_mount_point
+
+    - name: "/usr should be mounted on {{ device_name }}[/ostree/deploy/{{ os_name }}/deploy/{{ deploy_commit }}.0/usr]"
+      block:
+        - assert:
+            that:
+              - result_usr_mount_point.stdout == "{{ device_name }}[/ostree/deploy/{{ os_name }}/deploy/{{ deploy_commit }}.0/usr]"
+            fail_msg: "/usr does not mount on {{ device_name }}[/ostree/deploy/{{ os_name }}/deploy/{{ deploy_commit }}.0/usr]"
+            success_msg: "/usr mounts on {{ device_name }}[/ostree/deploy/{{ os_name }}/deploy/{{ deploy_commit }}.0/usr]"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    # case: check /usr mount status
+    - name: check /usr mount status
+      shell: findmnt -r -o OPTIONS -n /usr | awk -F "," '{print $1}'
+      register: result_usr_mount_status
+
+    - name: /usr should be mount with rw permission
+      block:
+        - assert:
+            that:
+              - result_usr_mount_status.stdout == "ro"
+            fail_msg: "/usr is not mounted with ro permission"
+            success_msg: "/usr is mounted with ro permission"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    - name: get the first 10 chars in commit hash
+      set_fact:
+        commit_log: "{{ deploy_commit[:11] }}"
+
+    # Ignition test only
+    # Ignition test running by user core, otherwise by user admin
+    - name: check hello.service added by ignition
+      command: systemctl list-unit-files hello.service
+      register: result_hello_service
+      changed_when: no
+      ignore_errors: yes
+      when: ignition == "true"
+
+    - name: hello.service should be added by ignition
+      block:
+        - assert:
+            that:
+              - result_hello_service.rc == 0
+            fail_msg: "hello.service does not exist"
+            success_msg: "hello.service has been added by ignition"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: ignition == "true"
+
+    # Ignition test only
+    # Ignition test running by user core, otherwise by user admin
+    - name: check log_trace.conf for fdo-client-linuxapp.service updated by ignition
+      command: grep -Fxq "Environment=LOG_LEVEL=trace" /etc/systemd/system/fdo-client-linuxapp.service.d/log_trace.conf
+      register: result_log_trace
+      changed_when: no
+      become: yes
+      ignore_errors: yes
+      when: ignition == "true"
+
+    - name: Environment=LOG_LEVEL=trace should be added by ignition
+      block:
+        - assert:
+            that:
+              - result_log_trace.rc == 0
+            fail_msg: "Config Environment=LOG_LEVEL=trace does not exist"
+            success_msg: "Environment=LOG_LEVEL=trace has been added by ignition"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: ignition == "true"
+
+    # Ignition test only
+    # hello.service just run a shell script for echo "Hello, World!"
+    - name: check systemd service correctly started on firstboot
+      block:
+
+        - name: check hello.service logs
+          command: journalctl -b -0 -u hello.service
+          register: result_hello_service_log
+          become: yes
+
+        - assert:
+            that:
+              - "'Hello, World!' in result_hello_service_log.stdout"
+            fail_msg: "hello.service doesn't have the correct log"
+            success_msg: "hello.service started and working"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: ignition == "true"
+
+    # case: check wget installed after upgrade
+    - name: check installed package
+      shell: rpm -qa | sort
+      register: result_packages
+
+    - name: check wget installed
+      block:
+        - assert:
+            that:
+              - "'wget' in result_packages.stdout"
+            fail_msg: "wget not installed, ostree upgrade might be failed"
+            success_msg: "wget installed in ostree upgrade"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: checking_stage == "2"
+
+    # case: check ostree-remount mount log
+    - name: check ostree-remount mount log
+      command: journalctl -u ostree-remount
+      register: result_remount_jounalctl
+      become: yes
+
+    - name: ostree-remount should remount /var and /sysroot
+      block:
+        - assert:
+            that:
+              - "'/sysroot' in result_remount_jounalctl.stdout"
+              - "'/var' in result_remount_jounalctl.stdout"
+            fail_msg: "/sysroot or /var are not remounted by ostree-remount"
+            success_msg: "/sysroot and /var are remount"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - ansible_facts['distribution'] != 'Fedora'
+        - sysroot_ro == "false" or (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('9.2', '<') and ansible_facts ['distribution_version'] is version('8.8', '!=') and ansible_facts ['distribution_version'] is version('8.9', '!='))
+
+    # case: check dmesg error and failed log
+    - name: check dmesg output
+      command: dmesg
+      become: yes
+
+    # Ignore ignition first attempt error log, it'll be successful at the second attempt
+    # e.g. ignition[630]: GET error: Get "http://192.168.100.1/ignition/config.ign": dial tcp 192.168.100.1:80: connect: network is unreachable
+    - name: check dmesg error and fail log
+      shell: dmesg --notime | grep -i "error\|fail" | grep -v "skipped" | grep -v "failover" | grep -v "ignition" | grep -v "BAR 13":" failed to assign" || true
+      register: result_dmesg_error
+      become: yes
+
+    - name: no more error or failed log
+      block:
+        - assert:
+            that:
+              # Work around for issue https://github.com/virt-s1/rhel-edge/issues/1402
+              - result_dmesg_error.stdout_lines | length <= 5
+              - "'pcieport 0000:00:01.6: Failed to check link status' in result_dmesg_error.stdout or 'Error: Driver \\'pcspkr\\' is already registered, aborting' in result_dmesg_error.stdout or 'KD_FONT_OP_GET failed while trying to get the font metadata: Invalid argument' in result_dmesg_error.stdout or 'sys-module-fuse.device: Failed to enqueue SYSTEMD_WANTS= job, ignoring: Unit sys-fs-fuse-connections.mount not found' in result_dmesg_error.stdout or '/usr/lib/systemd/system-generators/podman-system-generator failed with exit status 1' in result_dmesg_error.stdout or result_dmesg_error.stdout == ''"
+            fail_msg: "more or less error and failed log"
+            success_msg: "everything works as expected"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - ansible_facts['distribution'] == "RedHat" or ansible_facts['distribution'] == 'CentOS'
+        - "'rt' not in result_kernel.stdout"
+        - ansible_facts['architecture'] == "x86_64"
+
+    - name: no more error or failed log on aarch64
+      block:
+        - assert:
+            that:
+              # Fedora has 5 failed logs:
+              # NUMA: Failed to initialise from firmware
+              # 2 * systemd[1]: bpf-lsm: Failed to link program; assuming BPF LSM is not available
+              # systemd-gpt-auto-generator[581]: Failed to dissect: Permission denied
+              # systemd[572]: /usr/lib/systemd/system-generators/systemd-gpt-auto-generator failed with exit status 1.
+              - result_dmesg_error.stdout_lines | length <= 10
+              - "'NUMA: Failed to initialise from firmware' in result_dmesg_error.stdout or 'systemd[1]: bpf-lsm: Failed to link program; assuming BPF LSM is not available' in result_dmesg_error.stdout or result_dmesg_error.stdout == ''"
+            fail_msg: "more or less error and failed log"
+            success_msg: "everything works as expected"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - ansible_facts['architecture'] == "aarch64"
+
+    - name: no any error or fail log
+      block:
+        - assert:
+            that:
+              # Work around for issue https://github.com/virt-s1/rhel-edge/issues/1402
+              # Work around for issue https://github.com/virt-s1/rhel-edge/issues/1893
+              # Word around for issue https://github.com/virt-s1/rhel-edge/issues/1943
+              - result_dmesg_error.stdout_lines | length <= 5
+            fail_msg: "no any error fail log or only have one log"
+            success_msg: "everything works as expected"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - "'rt' in result_kernel.stdout"
+        - ansible_facts['architecture'] == "x86_64"
+
+    - name: no more error or failed log
+      block:
+        - assert:
+            that:
+              - result_dmesg_error.stdout_lines | length <= 5
+              # - "'pcieport 0000:00:01.6: pciehp: Failed to check link status' in result_dmesg_error.stdout"
+              - "'RAS: Correctable Errors collector initialized' in result_dmesg_error.stdout or 'systemd[1]: bpf-lsm: Failed to load BPF object: No such process' in result_dmesg_error.stdout or 'Failed to dissect: Permission denied' in result_dmesg_error.stdout or '/usr/lib/systemd/system-generators/systemd-gpt-auto-generator failed with exit status 1' in result_dmesg_error.stdout"
+            fail_msg: "more or less error and failed log"
+            success_msg: "everything works as expected"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - ansible_facts['distribution'] == "Fedora"
+        - "'rt' not in result_kernel.stdout"
+        - ansible_facts['architecture'] == "x86_64"
+
+    - name: check embedded container image with podman
+      command: podman images
+      become: yes
+      register: result_podman_images
+      when:
+        - embedded_container == "true"
+
+    - name: embedded container should be listed by podman images
+      block:
+        - assert:
+            that:
+              - "'quay.io/fedora/fedora' in result_podman_images.stdout"
+            fail_msg: "fedora image is not built in image"
+            success_msg: "fedora image is built in image"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - embedded_container == "true"
+
+    - name: embedded fedora-minimal container image should be listed by podman images
+      block:
+        - assert:
+            that:
+              - "'localhost/fedora-minimal' in result_podman_images.stdout"
+            fail_msg: "fedora-minimal image is not built in image"
+            success_msg: "fedora-minimal image is built in image"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - embedded_container == "true"
+        - ansible_architecture == "x86_64"
+        - (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('9.2', '>='))
+
+    - name: embedded fedora-aarch64 container image should be listed by podman images
+      block:
+        - assert:
+            that:
+              - "'localhost/fedora-aarch64' in result_podman_images.stdout"
+            fail_msg: "fedora-aarch64 image is not built in image"
+            success_msg: "fedora-aarch64 image is built in image"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - embedded_container == "true"
+        - ansible_architecture == "aarch64"
+        - (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('9.2', '>='))
+
+
+    # case: check running container with podman
+    # bug https://bugzilla.redhat.com/show_bug.cgi?id=2123611 fix is not landed on CS8
+    - name: run ubi8 image with root
+      command: podman run ubi8-minimal:latest cat /etc/redhat-release
+      register: podman_result
+      become: yes
+      retries: 30  # due to https://github.com/osbuild/osbuild-composer/issues/2492
+      delay: 2
+      until: podman_result is success
+      ignore_errors: yes
+      when: ansible_facts['distribution'] != 'CentOS' or ansible_facts ['distribution_version'] is version('8', '!=')
+
+    # bug https://bugzilla.redhat.com/show_bug.cgi?id=2123611 fix is not landed on CS8
+    - name: run container test
+      block:
+        - assert:
+            that:
+              - podman_result is succeeded
+              - "'Red Hat Enterprise Linux release' in podman_result.stdout"
+            fail_msg: "failed run container with podman (root)"
+            success_msg: "running container with podman (root) succeeded"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: ansible_facts['distribution'] != 'CentOS' or ansible_facts ['distribution_version'] is version('8', '!=')
+
+    # case: check running container with podman (non-root)
+    # workaround on RHEL 8.6 and 9.0 for issue https://bugzilla.redhat.com/show_bug.cgi?id=2078937
+    # because the fix is not available on 8.6 and 9.0 yet
+    # bug https://bugzilla.redhat.com/show_bug.cgi?id=2123611 fix is not landed on CS8
+    - name: run ubi8 image with non-root
+      command: podman run ubi8:latest cat /etc/redhat-release
+      register: podman_result
+      retries: 30  # due to https://github.com/osbuild/osbuild-composer/issues/2492
+      delay: 2
+      until: podman_result is success
+      ignore_errors: yes
+      when: (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('9.0', '>')) or
+            (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('8.6', '>') and ansible_facts ['distribution_version'] is version('9.0', '!=')) or
+            (ansible_facts['distribution'] == 'CentOS' and ansible_facts ['distribution_version'] is version('8', '!=')) or
+            (ansible_facts['distribution'] == 'Fedora')
+
+    # bug https://bugzilla.redhat.com/show_bug.cgi?id=2123611 fix is not landed on CS8
+    - name: run container test
+      block:
+        - assert:
+            that:
+              - podman_result is succeeded
+              - "'Red Hat Enterprise Linux release' in podman_result.stdout"
+            fail_msg: "failed run container with podman (non-root)"
+            success_msg: "running container with podman (non-root) succeeded"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('9.0', '>')) or
+            (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('8.6', '>') and ansible_facts ['distribution_version'] is version('9.0', '!=')) or
+            (ansible_facts['distribution'] == 'CentOS' and ansible_facts ['distribution_version'] is version('8', '!=')) or
+            (ansible_facts['distribution'] == 'Fedora')
+
+    # case: check fedora-minimal container with podman
+    - name: run fedora-minimal image
+      command: podman run localhost/fedora-minimal@sha256:4d76a7480ce1861c95975945633dc9d03807ffb45c64b664ef22e673798d414b cat /etc/os-release
+      register: fminimal_container_result
+      become: yes
+      retries: 30  # due to https://github.com/osbuild/osbuild-composer/issues/2492
+      delay: 2
+      until: fminimal_container_result is success
+      ignore_errors: yes  # due to https://bugzilla.redhat.com/show_bug.cgi?id=1903983
+      when:
+        - embedded_container == "true"
+        - ansible_architecture == "x86_64"
+        - (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('9.2', '>='))
+
+    - name: run fedora-minimal container test
+      block:
+        - assert:
+            that:
+              - fminimal_container_result is succeeded
+              - "'Fedora Linux 36 (Container Image)' in fminimal_container_result.stdout"
+              - "'Trying to pull' not in fminimal_container_result.stdout"
+            fail_msg: "failed run fedora-minimal container with podman"
+            success_msg: "running fedora-minimal container with podman succeeded"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - embedded_container == "true"
+        - ansible_architecture == "x86_64"
+        - (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('9.2', '>='))
+
+    # case: check fedora-aarch64 container with podman
+    - name: run fedora-aarch64 image
+      command: podman run localhost/fedora-aarch64@sha256:8fd6ac4c552bbec7910df7b0625310561d56513ecbcc418825a2f5635efecfab cat /etc/os-release
+      register: faarch64_container_result
+      become: yes
+      retries: 30  # due to https://github.com/osbuild/osbuild-composer/issues/2492
+      delay: 2
+      until: faarch64_container_result is success
+      ignore_errors: yes  # due to https://bugzilla.redhat.com/show_bug.cgi?id=1903983
+      when:
+        - embedded_container == "true"
+        - ansible_architecture == "aarch64"
+        - (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('9.2', '>='))
+
+    - name: run fedora-aarch64 container test
+      block:
+        - assert:
+            that:
+              - faarch64_container_result is succeeded
+              - "'Trying to pull' not in faarch64_container_result.stdout"
+            fail_msg: "failed run fedora-aarch64 container with podman"
+            success_msg: "running fedora-aarch64 container with podman succeeded"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - embedded_container == "true"
+        - ansible_architecture == "aarch64"
+        - (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('9.2', '>='))
+
+
+    # case: check dnf package and it should not be installed
+    # https://github.com/osbuild/osbuild-composer/blob/master/internal/distro/rhel8/distro.go#L642
+    - name: dnf should not be installed
+      block:
+        - name: dnf should not be installed
+          shell: rpm -qa | grep dnf || echo -n PASS
+          register: result_dnf
+
+        - assert:
+            that:
+              - result_dnf.stdout == "PASS"
+            fail_msg: "dnf is installed"
+            success_msg: "No dnf installed"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('9.0', '<')) or
+            (ansible_facts['distribution'] == 'CentOS' and ansible_facts ['distribution_version'] is version('9', '<'))
+
+    # case: check installed greenboot packages
+    - name: greenboot should be installed
+      block:
+        - name: greenboot should be installed
+          shell: rpm -qa | grep greenboot
+          register: result_greenboot_packages
+
+        - assert:
+            that:
+              - "'greenboot-0' in result_greenboot_packages.stdout"
+              - "'greenboot-default-health-checks' in result_greenboot_packages.stdout"
+            fail_msg: "greenboot is not installed"
+            success_msg: "greenboot is installed"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    # case: check greenboot* services
+    - name: a list of greenboot* service should be enabled
+      block:
+        - name: a list of greenboot* service should be enabled
+          command: systemctl is-enabled greenboot-grub2-set-counter greenboot-grub2-set-success greenboot-healthcheck greenboot-rpm-ostree-grub2-check-fallback greenboot-status greenboot-task-runner redboot-auto-reboot redboot-task-runner
+          register: result_greenboot_service
+
+        - assert:
+            that:
+              - result_greenboot_service.stdout == 'enabled\nenabled\nenabled\nenabled\nenabled\nenabled\nenabled\nenabled'
+            fail_msg: "Some of greenboot* services are not enabled"
+            success_msg: "All greenboot* services are enabled"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    # case: check greenboot* services log
+    - name: all greenboot* service should run without error
+      block:
+        # check service/target status instead of string matching messages
+        - name: check boot-complete.target
+          # will fail if the target was not reached
+          command: systemctl --no-pager status boot-complete.target
+
+        - name: all greenboot* service should run without error
+          command: journalctl -b -0 -u greenboot -u greenboot-healthcheck -u greenboot-rpm-ostree-grub2-check-fallback -u greenboot-grub2-set-counter -u greenboot-grub2-set-success -u greenboot-status -u redboot -u redboot-auto-reboot -u redboot.target
+          become: yes
+          register: result_greenboot_log
+
+        - assert:
+            that:
+              - "'Script \\'00_required_scripts_start.sh\\' SUCCESS' in result_greenboot_log.stdout"
+              - "'Script \\'00_wanted_scripts_start.sh\\' SUCCESS' in result_greenboot_log.stdout"
+              - "'greenboot Health Checks Runner' in result_greenboot_log.stdout"
+              - "'Mark boot as successful in grubenv' in result_greenboot_log.stdout"
+              - "'Boot Status is GREEN - Health Check SUCCESS' in result_greenboot_log.stdout"
+              - "'greenboot MotD Generator' in result_greenboot_log.stdout"
+            fail_msg: "Some errors happened in service boot"
+            success_msg: "All greenboot services booted success"
+
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    # case: check grubenv variables
+    - name: grubenv variables should contain boot_success=1
+      block:
+        - name: grubenv variables should contain boot_success=1
+          command: grub2-editenv list
+          register: result_grubenv
+          become: yes
+
+        - assert:
+            that:
+              - "'boot_success=1' in result_grubenv.stdout"
+            fail_msg: "Not found boot_success=1"
+            success_msg: "Found boot_success=1"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    # Check FDO status and task status
+    - name: check fdo-client-linuxapp logs
+      command: journalctl -u fdo-client-linuxapp
+      register: result_fdo_client_linuxapp_journalctl
+      become: yes
+      when:
+        - fdo_credential == "true"
+
+    # Check FDO client avc log
+    - name: check FDO client avc logs
+      command: ausearch -m avc -m user_avc -m selinux_err -i
+      ignore_errors: yes
+      become: yes
+      when:
+        - fdo_credential == "true"
+
+    # case: check rollback function if boot error found
+    - name: install sanely failing health check unit to test red boot status behavior
+      block:
+        - name: install sanely failing health check unit to test red boot status behavior
+          command: rpm-ostree install --cache-only https://kite-webhook-prod.s3.amazonaws.com/greenboot-failing-unit-1.0-1.el8.noarch.rpm --reboot
+          become: yes
+          ignore_errors: yes
+          ignore_unreachable: yes
+
+        - name: delay 60 seconds before reboot to make system stable
+          pause:
+            seconds: 60
+          delegate_to: 127.0.0.1
+
+        - name: wait for connection to become reachable/usable
+          wait_for_connection:
+            delay: 30
+
+        - name: waits until instance is reachable
+          wait_for:
+            host: "{{ ansible_all_ipv4_addresses[0] }}"
+            port: 22
+            search_regex: OpenSSH
+            delay: 10
+          register: result_rollback
+          until: result_rollback is success
+          retries: 6
+          delay: 10
+
+        - assert:
+            that:
+              - result_rollback is succeeded
+            fail_msg: "Rollback failed"
+            success_msg: "Rollback success"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    # case: check persistent log in Edge system
+    - name: check journald has persistent logging
+      block:
+        - name: list boots
+          shell: journalctl --list-boots
+          register: result_list_boots
+          become: yes
+
+        - assert:
+            that:
+              - result_list_boots.stdout_lines | length > 1
+            fail_msg: "journald hasn't persistent logging"
+            success_msg: "journald has persistent logging"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - result_rollback is succeeded
+        - (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('9.2', '>=')) or
+          ((ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('8.8', '>=')) and ansible_facts ['distribution_version'] is version('9.0', '!=') and ansible_facts ['distribution_version'] is version('9.1', '!=')) or
+          (ansible_facts['distribution'] == 'CentOS') or
+          (ansible_facts['distribution'] == 'Fedora')
+
+    # case: check ostree commit after rollback
+    - name: check ostree commit after rollback
+      block:
+        - name: check ostree commit after rollback
+          shell: rpm-ostree status --json | jq -r '.deployments[0].checksum'
+          register: result_commit
+
+        - assert:
+            that:
+              - deploy_commit == ostree_commit
+            fail_msg: "Not rollbackto last commit"
+            success_msg: "Rollback success"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: result_rollback is succeeded
+
+    # case: check greenboot* services log again
+    - name: fallback log should be found here
+      block:
+        # check service/target status instead of string matching messages
+        - name: check boot-complete.target
+          # will fail if the target was not reached
+          command: systemctl --no-pager status boot-complete.target
+          become: yes
+
+        - name: fallback log should be found here
+          command: journalctl -b -0 -u greenboot -u greenboot-healthcheck -u greenboot-rpm-ostree-grub2-check-fallback -u greenboot-grub2-set-counter -u greenboot-grub2-set-success -u greenboot-status -u redboot -u redboot-auto-reboot -u redboot.target
+          become: yes
+          register: result_greenboot_log
+
+        - assert:
+            that:
+              - "'FALLBACK BOOT DETECTED! Default rpm-ostree deployment has been rolled back' in result_greenboot_log.stdout"
+              - "'Script \\'00_required_scripts_start.sh\\' SUCCESS' in result_greenboot_log.stdout"
+              - "'Script \\'00_wanted_scripts_start.sh\\' SUCCESS' in result_greenboot_log.stdout"
+              - "'greenboot Health Checks Runner' in result_greenboot_log.stdout"
+              - "'Mark boot as successful in grubenv' in result_greenboot_log.stdout"
+              - "'Boot Status is GREEN - Health Check SUCCESS' in result_greenboot_log.stdout"
+              - "'greenboot MotD Generator' in result_greenboot_log.stdout"
+            fail_msg: "Fallback log not found"
+            success_msg: "Found fallback log"
+
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: result_rollback is succeeded
+
+    # case: check grubenv variables again
+    - name: grubenv variables should contain boot_success=1
+      block:
+        - name: grubenv variables should contain boot_success=1
+          command: grub2-editenv list
+          register: result_grubenv
+          become: yes
+
+        - assert:
+            that:
+              - "'boot_success=1' in result_grubenv.stdout"
+            fail_msg: "Not found boot_success=1"
+            success_msg: "Found boot_success=1"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: result_rollback is succeeded
+
+    # Check FDO status and task status
+    - name: check fdo-client-linuxapp logs
+      command: journalctl -u fdo-client-linuxapp
+      register: result_fdo_client_linuxapp_journalctl
+      become: yes
+      when:
+        - fdo_credential == "true"
+
+    # Check FDO client avc log
+    - name: check FDO client avc logs
+      command: ausearch -m avc -m user_avc -m selinux_err -i
+      ignore_errors: yes
+      become: yes
+      when:
+        - fdo_credential == "true"
+
+    # Check re-encryption status on x86_64
+    - name: wait for FDO re-encryption
+      block:
+        - shell: cryptsetup luksDump /dev/vda4
+          register: result
+          until: not result.stdout_lines is search("cipher_null-ecb")
+          retries: 30
+          delay: 60
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - fdo_credential == "true"
+        - ansible_facts['architecture'] == "x86_64"
+        - ansible_facts['distribution'] == 'RedHat'
+
+    # Check re-encryption status on aarch64
+    - name: wait for FDO re-encryption
+      block:
+        - shell: cryptsetup luksDump /dev/vda3
+          register: result
+          become: yes
+          until: not result.stdout_lines is search("cipher_null-ecb")
+          retries: 30
+          delay: 60
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - fdo_credential == "true"
+        - ansible_facts['architecture'] == "aarch64"
+
+    # Check re-encryption status on fedora
+    - name: wait for FDO re-encryption
+      block:
+        - shell: cryptsetup luksDump /dev/vda3
+          register: result
+          until: not result.stdout_lines is search("cipher_null-ecb")
+          retries: 30
+          delay: 60
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - fdo_credential == "true"
+        - ansible_facts['distribution'] == "Fedora"
+
+    # Check FDO status and task status
+    - name: check fdo-client-linuxapp logs
+      command: journalctl -u fdo-client-linuxapp
+      register: result_fdo_client_linuxapp_journalctl
+      become: yes
+      when:
+        - fdo_credential == "true"
+
+    # Check FDO client avc log
+    - name: check FDO client avc logs
+      command: ausearch -m avc -m user_avc -m selinux_err -i
+      ignore_errors: yes
+      become: yes
+      when:
+        - fdo_credential == "true"
+
+    # case: checking firewall customizations
+    - name: Check applied firewall customizations
+      block:
+        - name: Ensure firewall customizations applied from blueprint in trusted zone
+          command: firewall-cmd --info-zone=trusted
+          register: result_trusted_zone
+          become: yes
+        - name: Ensure firewall customizations applied from blueprint in work zone
+          command: firewall-cmd --info-zone=work
+          register: result_work_zone
+          become: yes
+
+        - assert:
+            that:
+              - "'192.168.100.51' in result_trusted_zone.stdout"
+              - "'192.168.100.52' in result_work_zone.stdout"
+            fail_msg: "No firewall customizations found"
+            success_msg: "Firewall customizations added from blueprint"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: firewall_feature == "true"
+
+    # case: check sos package
+    - name: Check SOS Package
+      block:
+        - name: Generate sos report
+          command: sos report --no-report --batch -o podman
+          become: "true"
+          register: result_sos_report
+
+        - assert:
+            that:
+              - result_sos_report is succeeded
+            fail_msg: "No usable sos package present"
+            success_msg: "sos package present and usable"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when:
+        - (ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('9.2', '>=')) or
+          ((ansible_facts['distribution'] == 'RedHat' and ansible_facts ['distribution_version'] is version('8.8', '>=')) and ansible_facts ['distribution_version'] is version('9.0', '!=') and ansible_facts ['distribution_version'] is version('9.1', '!=')) or
+          (ansible_facts['distribution'] == 'CentOS')
+
+# case: checking files and directories customizations
+    - name: Check that custom files and directories are present
+      block:
+        # Test basic custom files and directories creation
+        - name: Check that /etc/custom_dir exists
+          stat:
+            path: /etc/custom_dir
+
+        - name: Check that /etc/custom_dir/dir1 exists
+          stat:
+            path: /etc/custom_dir/dir1
+          register: result_custom_dir
+
+        - name: Check that /etc/custom_dir/dir1 is owned by user ID `1020`
+          assert:
+            that:
+              - result_custom_dir.stat.uid == 1020
+            fail_msg: "Directory /etc/custom_dir/dir1 is not owned by user ID '1020'"
+            success_msg: "Directory /etc/custom_dir/dir1 is owned by user ID '1020'"
+
+        - name: Check that /etc/custom_dir/dir1 is owned by group ID `1020`
+          assert:
+            that:
+              - result_custom_dir.stat.gid == 1020
+            fail_msg: "Directory /etc/custom_dir/dir1 is not owned by group ID '1020'"
+            success_msg: "Directory /etc/custom_dir/dir1 is owned by group ID '1020'"
+
+        - name: Check that /etc/custom_dir/dir1 has 0770 permissions
+          assert:
+            that:
+              - result_custom_dir.stat.mode == '0770'
+            fail_msg: "Directory /etc/custom_dir/dir1 has wrong permissions"
+            success_msg: "Directory /etc/custom_dir/dir1 has correct permissions"
+
+        # Test the use of custom files for systemd units
+        - name: Check status of 'custom.service'
+          systemd:
+            name: custom.service
+          register: result_custom_service
+
+        - name: Check that 'custom.service' is started and enabled
+          assert:
+            that:
+              - result_custom_service.status['LoadState'] == 'loaded'
+              - result_custom_service.status['ActiveState'] == 'active'
+              - result_custom_service.status['SubState'] == 'exited'
+              - result_custom_service.status['UnitFileState'] == 'enabled'
+            fail_msg: "Service 'custom.service' is not started or enabled"
+            success_msg: "Service 'custom.service' is started and enabled"
+
+        # The DropInPaths on Fedora 38+ is different with Fedora 37 and other OS
+        - name: Check that 'custom.service' was overridden by drop-in for Fedora 38+
+          assert:
+            that:
+              - result_custom_service.status['DropInPaths'] == "/usr/lib/systemd/system/service.d/10-timeout-abort.conf /etc/systemd/system/custom.service.d/override.conf"
+            fail_msg: "Service 'custom.service' was not overridden by drop-in"
+            success_msg: "Service 'custom.service' was overridden by drop-in"
+          when:
+            - (ansible_facts['distribution'] == 'Fedora') and (ansible_facts ['distribution_version'] is version('38', '>='))
+
+        - name: Check that 'custom.service' was overridden by drop-in for OS rather than Fedora 38+
+          assert:
+            that:
+              - result_custom_service.status['DropInPaths'] == "/etc/systemd/system/custom.service.d/override.conf"
+            fail_msg: "Service 'custom.service' was not overridden by drop-in"
+            success_msg: "Service 'custom.service' was overridden by drop-in"
+          when:
+            - not (ansible_facts['distribution'] == 'Fedora' and ansible_facts ['distribution_version'] is version('38', '>='))
+
+        - name: Check output of 'custom.service' in the journal
+          command: journalctl -b -u custom.service
+          register: custom_service_journal
+          become: yes
+
+        - name: Check that 'image builder is the best' message is present in journal
+          assert:
+            that:
+              - "'image builder is the best' in custom_service_journal.stdout"
+            fail_msg: "Message 'image builder is the best' is not present in journal"
+            success_msg: "Message 'image builder is the best' is present in journal"
+
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+      when: test_custom_dirs_files == "true"
+
+    - assert:
+        that:
+          - failed_counter == "0"
+        fail_msg: "Run {{ total_counter }} tests, but {{ failed_counter }} of them failed"
+        success_msg: "Totally {{ total_counter }} test passed"

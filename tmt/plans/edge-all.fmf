@@ -1,0 +1,21 @@
+summary: Edge commit test
+discover:
+  how: fmf
+  test: edge-all
+execute:
+  how: tmt
+adjust:
+  provision:
+    hardware:
+      virtualization:
+        is-supported: true
+
+/edge-commit:
+  summary: Test edge commit
+  environment+:
+    TEST_CASE: edge-commit
+
+/edge-raw-image:
+  summary: Test edge raw image
+  environment+:
+    TEST_CASE: edge-raw-image
