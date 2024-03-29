@@ -1,0 +1,7 @@
+summary: Edge commit test
+discover:
+  how: fmf
+  test: edge-commit
+execute:
+    how: tmt
+

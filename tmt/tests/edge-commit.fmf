@@ -1,0 +1,4 @@
+test: ./test.sh
+duration: 120m
+environment:
+  TEST_CASE: edge-commit
