@@ -1,0 +1,3 @@
+summary: Concise summary describing what the test does
+test: ./t2.sh
+framework: beakerlib
