@@ -1,0 +1,6 @@
+summary: Edge raw image test
+discover:
+  how: fmf
+  test: edge-raw-image
+execute:
+    how: tmt
