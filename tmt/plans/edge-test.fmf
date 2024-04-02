@@ -1,0 +1,82 @@
+summary: Edge commit test
+discover:
+  how: fmf
+  test: edge-test
+execute:
+  how: tmt
+provision:
+  hardware:
+    virtualization:
+      is-supported: true
+
+/edge-commit:
+  summary: Test edge commit
+  duration+: 60m
+  environment+:
+    TEST_CASE: edge-commit
+
+/edge-installer:
+  summary: Test edge installer image
+  duration+: 120m
+  environment+:
+    TEST_CASE: edge-installer
+
+/edge-raw-image:
+  summary: Test edge raw image
+  duration+: 90m
+  environment+:
+    TEST_CASE: edge-raw-image
+
+/edge-ami-image:
+  summary: Test edge ami image
+  duration: 90m
+  environment+:
+    TEST_CASE: edge-ami-image
+
+/edge-simplified-installer:
+  summary: Test edge simplified installer image
+  duration: 150m
+  environment+:
+    TEST_CASE: edge-simplified-installer
+
+/edge-minimal:
+  summary: Test edge minimal raw image
+  duration: 90m
+  environment+:
+    TEST_CASE: edge-minimal
+
+/edge-vsphere:
+  summary: Test edge vsphere image
+  duration: 120m
+  environment+:
+    TEST_CASE: edge-vsphere
+
+/edge-fdo-aio:
+  summary: Test edge with fdo aio service
+  duration: 150m
+  environment+:
+    TEST_CASE: edge-fdo-aio
+
+/edge-ignition:
+  summary: Test edge ignition feature
+  duration: 120m
+  environment+:
+    TEST_CASE: edge-ignition
+
+/edge-pulp:
+  summary: Test edge pulp feature
+  duration: 120m
+  environment+:
+    TEST_CASE: edge-pulp
+
+/edge-8to9:
+  summary: Test edge upgrade from 8 to 9
+  duration: 90m
+  environment+:
+    TEST_CASE: edge-8to9
+
+/edge-9to9:
+  summary: Test edge rebase from 9 to 9
+  duration: 90m
+  environment+:
+    TEST_CASE: edge-9to9
