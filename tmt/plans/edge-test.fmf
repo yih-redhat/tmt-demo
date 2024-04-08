@@ -33,7 +33,7 @@ provision:
   summary: Test edge simplified installer image
   provision+:
     hardware:
-      memory: 16 GB
+      memory: ">= 16 GB"
   environment+:
     TEST_CASE: edge-simplified-installer
 
@@ -71,7 +71,7 @@ provision:
   summary: Test edge upgrade from 8 to 9
   provision+:
     hardware:
-      memory: 16 GB
+      memory: ">= 16 GB"
   environment+:
     TEST_CASE: edge-8to9
 
@@ -79,6 +79,6 @@ provision:
   summary: Test edge rebase from 9 to 9
   provision+:
     hardware:
-      memory: 16 GB
+      memory: ">= 16 GB"
   environment+:
     TEST_CASE: edge-9to9
