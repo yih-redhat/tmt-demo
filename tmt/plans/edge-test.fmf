@@ -7,8 +7,6 @@ execute:
 provision:
   hardware:
     memory: 16 GB
-    cpu:
-      processors: 8
     virtualization:
       is-supported: true
 
