@@ -6,9 +6,6 @@ execute:
   how: tmt
 provision:
   hardware:
-    memory: 16 GB
-    cpu:
-      processors: 8
     virtualization:
       is-supported: true
 
@@ -34,6 +31,9 @@ provision:
 
 /edge-simplified-installer:
   summary: Test edge simplified installer image
+  provision+:
+    hardware:
+      memory: 16 GB
   environment+:
     TEST_CASE: edge-simplified-installer
 
@@ -69,10 +69,16 @@ provision:
 
 /edge-8to9:
   summary: Test edge upgrade from 8 to 9
+  provision+:
+    hardware:
+      memory: 16 GB
   environment+:
     TEST_CASE: edge-8to9
 
 /edge-9to9:
   summary: Test edge rebase from 9 to 9
+  provision+:
+    hardware:
+      memory: 16 GB
   environment+:
     TEST_CASE: edge-9to9
