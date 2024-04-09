@@ -217,7 +217,7 @@ clean_up () {
     sudo virsh vol-delete --pool images "${IMAGE_KEY}-uefi.qcow2"
 
     # Remove all the containers and images if exist
-    sudo podman system reset --force
+    # sudo podman system reset --force
 
     # Remomve tmp dir.
     sudo rm -rf "$TEMPDIR"
