@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euox pipefail
 
 cd ../../ || exit 1
 
@@ -6,7 +7,7 @@ function run_tests() {
 	if [ "$TEST_CASE" = "edge-commit" ]; then
 		./ostree.sh
 	elif [ "$TEST_CASE" = "edge-installer" ]; then
-		./ostree-installer.sh
+		./ostree-ng.sh
 	elif [ "$TEST_CASE" = "edge-raw-image" ]; then
 		./ostree-raw-image.sh
 	elif [ "$TEST_CASE" = "edge-ami-image" ]; then
