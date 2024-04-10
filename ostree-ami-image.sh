@@ -84,7 +84,6 @@ get_compose_metadata () {
 
     # Move the JSON file into place.
     sudo cat "${TEMPDIR}"/"${COMPOSE_ID}".json | jq -M '.' | tee "$METADATA_FILE" > /dev/null
-    sudo chown admin:admin "${TEMPDIR}"/"${COMPOSE_ID}".json
 }
 
 # Build ostree image.
@@ -815,6 +814,7 @@ EOF
 
 # Test IoT/Edge OS
 podman run \
+    --network=host \
     --annotation run.oci.keep_original_groups=1 \
     -v "$(pwd)":/work:z \
     -v "${TEMPDIR}":/tmp:z \
@@ -1000,6 +1000,7 @@ EOF
 
 # Test IoT/Edge OS
 podman run \
+    --network=host \
     --annotation run.oci.keep_original_groups=1 \
     -v "$(pwd)":/work:z \
     -v "${TEMPDIR}":/tmp:z \

@@ -232,3 +232,9 @@ sudo composer-cli sources list
 for SOURCE in $(sudo composer-cli sources list); do
     sudo composer-cli sources info "$SOURCE"
 done
+
+# In case port 8081 is already in use
+sudo dnf install -y lsof
+if lsof -nP -iTCP -sTCP:LISTEN|grep 8081; then
+    sudo fuser -k 8081/tcp
+fi
