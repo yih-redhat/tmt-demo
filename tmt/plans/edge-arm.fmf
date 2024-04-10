@@ -1,0 +1,27 @@
+summary: Edge arm
+discover:
+  how: fmf
+  test: edge-arm
+execute:
+  how: tmt
+provision:
+  hardware:
+    virtualization:
+      is-supported: true
+    cpu:
+      processors: ">= 2"
+    memory: ">= 8 GB"
+
+/edge-commit:
+  summary: Test edge commit
+  environment+:
+    TEST_CASE: edge-commit
+
+/edge-arm-minimal:
+  summary: Test edge minimal raw image
+  environment+:
+    TEST_CASE: edge-minimal
+  adjust+:
+    provision+:
+      hardware:
+        arch: aarch64

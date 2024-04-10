@@ -6,9 +6,11 @@ execute:
   how: tmt
 provision:
   hardware:
-    memory: ">= 16 GB"
     virtualization:
       is-supported: true
+    cpu:
+      processors: ">= 4"
+    memory: ">= 8 GB"
 
 /edge-commit:
   summary: Test edge commit
@@ -30,6 +32,15 @@ provision:
   environment+:
     TEST_CASE: edge-ami-image
 
+/edge-arm-ami-image:
+  summary: Test edge ami image
+  environment+:
+    TEST_CASE: edge-ami-image
+  adjust+:
+    provision+:
+      hardware:
+        arch: aarch64
+
 /edge-simplified-installer:
   summary: Test edge simplified installer image
   environment+:
@@ -39,6 +50,15 @@ provision:
   summary: Test edge minimal raw image
   environment+:
     TEST_CASE: edge-minimal
+
+/edge-arm-minimal:
+  summary: Test edge minimal raw image
+  environment+:
+    TEST_CASE: edge-minimal
+  adjust+:
+    provision+:
+      hardware:
+        arch: aarch64
 
 /edge-vsphere:
   summary: Test edge vsphere image
