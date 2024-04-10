@@ -639,4 +639,9 @@ check_result
 # Final success clean up
 clean_up
 
+# Check process
+greenprint "🛃 Checking for leftover or orphaned process"
+sudo ps axjf
+sudo pstree -pal
+
 exit 0
