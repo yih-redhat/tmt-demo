@@ -115,7 +115,19 @@ case "${ID}-${VERSION_ID}" in
         OSTREE_REF="rhel/9/${ARCH}/edge"
         USER_IN_COMMIT="true"
         OS_VARIANT="rhel9-unknown"
-        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/RHEL-9/latest-RHEL-9.4.0/compose/BaseOS/x86_64/os/"
+        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/updates/RHEL-9/latest-RHEL-9.4.0/compose/BaseOS/x86_64/os/"
+        CUT_DIRS=9
+        ADD_SSSD="true"
+        EMBEDDED_CONTAINER="true"
+        FIREWALL_FEATURE="true"
+        SYSROOT_RO="true"
+        DIRS_FILES_CUSTOMIZATION="true"
+        ;;
+    "rhel-9.5")
+        OSTREE_REF="rhel/9/${ARCH}/edge"
+        USER_IN_COMMIT="true"
+        OS_VARIANT="rhel9-unknown"
+        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/RHEL-9/latest-RHEL-9.5.0/compose/BaseOS/x86_64/os/"
         CUT_DIRS=8
         ADD_SSSD="true"
         EMBEDDED_CONTAINER="true"
@@ -145,17 +157,6 @@ case "${ID}-${VERSION_ID}" in
         SYSROOT_RO="true"
         DIRS_FILES_CUSTOMIZATION="true"
         ;;
-    "fedora-38")
-        IMAGE_TYPE=fedora-iot-commit
-        USER_IN_COMMIT="false"
-        OSTREE_REF="fedora/38/${ARCH}/iot"
-        OS_VARIANT="fedora-unknown"
-        BOOT_LOCATION="https://dl.fedoraproject.org/pub/fedora/linux/releases/38/Everything/x86_64/os/"
-        CUT_DIRS=8
-        ADD_SSSD="false"
-        SYSROOT_RO="true"
-        DIRS_FILES_CUSTOMIZATION="true"
-        ;;
     "fedora-39")
         IMAGE_TYPE=fedora-iot-commit
         USER_IN_COMMIT="false"
@@ -171,13 +172,24 @@ case "${ID}-${VERSION_ID}" in
         IMAGE_TYPE=fedora-iot-commit
         USER_IN_COMMIT="false"
         OSTREE_REF="fedora/40/${ARCH}/iot"
-        OS_VARIANT="fedora-rawhide"
-        BOOT_LOCATION="https://dl.fedoraproject.org/pub/fedora/linux/development/rawhide/Everything/x86_64/os/"
+        OS_VARIANT="fedora-unknown"
+        BOOT_LOCATION="https://dl.fedoraproject.org/pub/fedora/linux/development/40/Everything/x86_64/os/"
         CUT_DIRS=8
         ADD_SSSD="false"
         SYSROOT_RO="true"
         DIRS_FILES_CUSTOMIZATION="true"
         ;;
+#     "fedora-41")
+#         IMAGE_TYPE=fedora-iot-commit
+#         USER_IN_COMMIT="false"
+#         OSTREE_REF="fedora/41/${ARCH}/iot"
+#         OS_VARIANT="fedora-rawhide"
+#         BOOT_LOCATION="https://dl.fedoraproject.org/pub/fedora/linux/development/rawhide/Everything/x86_64/os/"
+#         CUT_DIRS=8
+#         ADD_SSSD="false"
+#         SYSROOT_RO="true"
+#         DIRS_FILES_CUSTOMIZATION="true"
+#         ;;
     *)
         echo "unsupported distro: ${ID}-${VERSION_ID}"
         exit 1;;
@@ -739,7 +751,7 @@ ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/
 EOF
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${OS_NAME}" -e ostree_commit="${UPGRADE_HASH}" -e ostree_ref="${OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e firewall_feature="${FIREWALL_FEATURE}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
+podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${OS_NAME}" -e ostree_commit="${UPGRADE_HASH}" -e ostree_ref="${OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e firewall_feature="${FIREWALL_FEATURE}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
 check_result
 
 # Final success clean up

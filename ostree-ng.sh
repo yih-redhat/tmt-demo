@@ -128,6 +128,17 @@ case "${ID}-${VERSION_ID}" in
         SYSROOT_RO="true"
         DIRS_FILES_CUSTOMIZATION="true"
         ;;
+    "rhel-9.5")
+        OSTREE_REF="rhel/9/${ARCH}/edge"
+        OS_VARIANT="rhel9-unknown"
+        NEW_MKKSISO="true"
+        CONTAINER_PUSHING_FEAT="true"
+        EMBEDDED_CONTAINER="true"
+        HTTP_BOOT_FEAT="true"
+        SYSROOT_RO="true"
+        DIRS_FILES_CUSTOMIZATION="true"
+        ANSIBLE_OS_NAME="rhel-edge"
+        ;;
     "centos-8")
         OSTREE_REF="centos/8/${ARCH}/edge"
         OS_VARIANT="centos-stream8"
@@ -146,6 +157,7 @@ case "${ID}-${VERSION_ID}" in
         BOOT_ARGS="uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no"
         SYSROOT_RO="true"
         DIRS_FILES_CUSTOMIZATION="true"
+        ANSIBLE_OS_NAME="rhel-edge"
         ;;
     "fedora-38")
         CONTAINER_IMAGE_TYPE=fedora-iot-container
@@ -528,7 +540,7 @@ EOF
 EOF
     # Test IoT/Edge OS
     greenprint "📼 Run Edge tests on HTTPBOOT VM"
-    podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${ANSIBLE_OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
+    podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="rhel" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="rhel:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
     check_result
 
     greenprint "🧹 Clean up HTTPBOOT VM"
@@ -833,7 +845,7 @@ EOF
 
 # Test IoT/Edge OS
 greenprint "📼 Run Edge tests on BIOS VM"
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${ANSIBLE_OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
+podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${ANSIBLE_OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
 check_result
 
 # Clean BIOS VM
@@ -914,7 +926,7 @@ version = "*"
 EOF
 
 # ANSIBLE_OS_NAME is a check-ostree.yaml playbook variable defined as "rhel" just for RHEL and CS systems, otherwise is "fedora"
-if [[ "${ANSIBLE_OS_NAME}" == "rhel" ]]; then
+if [[ "${ANSIBLE_OS_NAME}" == "rhel" || "${ANSIBLE_OS_NAME}" == "rhel-edge" ]]; then
     tee -a "$BLUEPRINT_FILE" >> /dev/null << EOF
 [customizations.kernel]
 name = "kernel-rt"
@@ -1052,7 +1064,7 @@ ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/
 EOF
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${UPGRADE_HASH}" -e ostree_ref="${ANSIBLE_OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
+podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${UPGRADE_HASH}" -e ostree_ref="${ANSIBLE_OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
 check_result
 
 # Final success clean up
