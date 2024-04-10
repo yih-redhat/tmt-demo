@@ -483,7 +483,7 @@ ansible_become_pass=${IGNITION_USER_PASSWORD}
 EOF
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z \
+podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z \
     --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory \
     -e ignition="true" \
     -e os_name=redhat \
@@ -678,7 +678,7 @@ ansible_become_pass=${IGNITION_USER_PASSWORD}
 EOF
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z \
+podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z \
     --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory \
     -e ignition="true" \
     -e os_name=redhat \
