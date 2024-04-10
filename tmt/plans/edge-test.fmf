@@ -6,7 +6,6 @@ execute:
   how: tmt
 provision:
   hardware:
-    memory: ">= 16 GB"
     virtualization:
       is-supported: true
 
