@@ -1,0 +1,20 @@
+summary: Edge arm
+discover:
+  how: fmf
+  test: edge-arm
+execute:
+  how: tmt
+provision:
+  hardware:
+    virtualization:
+      is-supported: true
+
+/edge-commit:
+  summary: Test edge commit
+  environment+:
+    TEST_CASE: edge-commit
+
+/edge-arm-minimal:
+  summary: Test edge minimal raw image
+  environment+:
+    TEST_CASE: edge-minimal
