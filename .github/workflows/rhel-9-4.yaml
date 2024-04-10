@@ -1,5 +1,5 @@
 ---
-name: rhel94 test
+name: Run Edge Test on RHEL 9.4.0
 
 on:
   issue_comment:
@@ -9,22 +9,7 @@ on:
 jobs:
   pr-info:
     if: ${{ github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-commit') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-installer') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-raw') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-ami') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-arm-ami') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-simplified') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-minimal') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-arm-minimal') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-vsphere') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-fdo-aio') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-fdo-db') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-ignition') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-pulp') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-8to9') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-9to9')) }}
+            (endsWith(github.event.comment.body, '/test-rhel-9-4')) }}
     runs-on: ubuntu-latest
     steps:
       - name: Query author repository permissions
@@ -56,11 +41,9 @@ jobs:
       ref: ${{ fromJson(steps.pr-api.outputs.data).head.ref }}
       repo_url: ${{ fromJson(steps.pr-api.outputs.data).head.repo.html_url }}
 
-  edge-commit-94:
+  edge-rhel-94-x86:
     needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-commit')) }}
+    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request }}
     continue-on-error: true
     runs-on: ubuntu-latest
 
@@ -72,7 +55,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
+        uses: sclorg/testing-farm-as-github-action@v2
         with:
           compose: RHEL-9.4.0-Nightly
           arch: x86_64
@@ -80,16 +63,15 @@ jobs:
           git_url: ${{ needs.pr-info.outputs.repo_url }}
           git_ref: ${{ needs.pr-info.outputs.ref }}
           update_pull_request_status: true
-          pull_request_status_name: "edge-commit-9.4"
+          pull_request_status_name: "edge-rhel-9.4-x86"
+          tmt_plan_regex: edge-x86
           tf_scope: private
-          tmt_plan_regex: edge-commit
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }}"
+          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }};OCP4_TOKEN=${{ secrets.OCP4_TOKEN }};QUAY_USERNAME=${{ secrets.QUAY_USERNAME }};QUAY_PASSWORD=${{ secrets.QUAY_PASSWORD }};DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }};DOCKERHUB_PASSWORD=${{ secrets.DOCKERHUB_PASSWORD }};AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }};AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }};AWS_DEFAULT_REGION=us-east-1;GOVC_URL=${{ secrets.GOVC_URL }};GOVC_USERNAME=${{ secrets.GOVC_USERNAME }};GOVC_PASSWORD=${{ secrets.GOVC_PASSWORD }};GOVC_INSECURE=1"
+          timeout: 180
 
-  edge-installer:
+  edge-rhel-94-arm:
     needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-installer')) }}
+    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request }}
     continue-on-error: true
     runs-on: ubuntu-latest
 
@@ -101,94 +83,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
-        with:
-          compose: RHEL-9.4.0-Nightly
-          arch: x86_64
-          api_key: ${{ secrets.TF_API_KEY }}
-          git_url: ${{ needs.pr-info.outputs.repo_url }}
-          git_ref: ${{ needs.pr-info.outputs.ref }}
-          update_pull_request_status: true
-          pull_request_status_name: "edge-installer-9.4"
-          tf_scope: private
-          tmt_plan_regex: edge-installer
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }};OCP4_TOKEN=${{ secrets.OCP4_TOKEN }};QUAY_USERNAME=${{ secrets.QUAY_USERNAME }};QUAY_PASSWORD=${{ secrets.QUAY_PASSWORD }}"
-
-  edge-raw-94:
-    needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-raw')) }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4
-        with:
-          ref: ${{ needs.pr-info.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
-        with:
-          compose: RHEL-9.4.0-Nightly
-          arch: x86_64
-          api_key: ${{ secrets.TF_API_KEY }}
-          git_url: ${{ needs.pr-info.outputs.repo_url }}
-          git_ref: ${{ needs.pr-info.outputs.ref }}
-          update_pull_request_status: true
-          pull_request_status_name: "edge-raw-image-9.4"
-          tf_scope: private
-          tmt_plan_regex: edge-raw-image
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }};DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }};DOCKERHUB_PASSWORD=${{ secrets.DOCKERHUB_PASSWORD }}"
-
-  edge-ami-94:
-    needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-ami')) }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4
-        with:
-          ref: ${{ needs.pr-info.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
-        with:
-          compose: RHEL-9.4.0-Nightly
-          arch: x86_64
-          api_key: ${{ secrets.TF_API_KEY }}
-          git_url: ${{ needs.pr-info.outputs.repo_url }}
-          git_ref: ${{ needs.pr-info.outputs.ref }}
-          update_pull_request_status: true
-          pull_request_status_name: "edge-ami-9.4"
-          tf_scope: private
-          tmt_plan_regex: edge-ami-image
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }};AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }};AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }};AWS_DEFAULT_REGION=us-east-1"
-
-  edge-arm-ami-94:
-    needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-arm-ami')) }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4
-        with:
-          ref: ${{ needs.pr-info.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
+        uses: sclorg/testing-farm-as-github-action@v2
         with:
           compose: RHEL-9.4.0-Nightly
           arch: aarch64
@@ -196,297 +91,8 @@ jobs:
           git_url: ${{ needs.pr-info.outputs.repo_url }}
           git_ref: ${{ needs.pr-info.outputs.ref }}
           update_pull_request_status: true
-          pull_request_status_name: "edge-arm-ami-9.4"
+          pull_request_status_name: "edge-rhel-9.4-arm"
+          tmt_plan_regex: edge-arm
           tf_scope: private
-          tmt_plan_regex: edge-ami-image
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }};AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }};AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }};AWS_DEFAULT_REGION=us-east-1"
-
-  edge-simplified-94:
-    needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-simplified')) }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4
-        with:
-          ref: ${{ needs.pr-info.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
-        with:
-          compose: RHEL-9.4.0-Nightly
-          arch: x86_64
-          api_key: ${{ secrets.TF_API_KEY }}
-          git_url: ${{ needs.pr-info.outputs.repo_url }}
-          git_ref: ${{ needs.pr-info.outputs.ref }}
-          update_pull_request_status: true
-          pull_request_status_name: "edge-simplified-9.4"
-          tf_scope: private
-          tmt_plan_regex: edge-simplified-installer
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }}"
-
-  edge-minimal-94:
-    needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-minimal')) }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4
-        with:
-          ref: ${{ needs.pr-info.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
-        with:
-          compose: RHEL-9.4.0-Nightly
-          arch: x86_64
-          api_key: ${{ secrets.TF_API_KEY }}
-          git_url: ${{ needs.pr-info.outputs.repo_url }}
-          git_ref: ${{ needs.pr-info.outputs.ref }}
-          update_pull_request_status: true
-          pull_request_status_name: "edge-minimal-9.4"
-          tf_scope: private
-          tmt_plan_regex: edge-minimal
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }}"
-
-  edge-arm-minimal-94:
-    needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-arm-minimal')) }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4
-        with:
-          ref: ${{ needs.pr-info.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
-        with:
-          compose: RHEL-9.4.0-Nightly
-          arch: aarch64
-          api_key: ${{ secrets.TF_API_KEY }}
-          git_url: ${{ needs.pr-info.outputs.repo_url }}
-          git_ref: ${{ needs.pr-info.outputs.ref }}
-          update_pull_request_status: true
-          pull_request_status_name: "edge-arm-minimal-9.4"
-          tf_scope: private
-          tmt_plan_regex: edge-minimal
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }}"
-
-  edge-vsphere-94:
-    needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-vsphere')) }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4
-        with:
-          ref: ${{ needs.pr-info.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
-        with:
-          compose: RHEL-9.4.0-Nightly
-          arch: x86_64
-          api_key: ${{ secrets.TF_API_KEY }}
-          git_url: ${{ needs.pr-info.outputs.repo_url }}
-          git_ref: ${{ needs.pr-info.outputs.ref }}
-          update_pull_request_status: true
-          pull_request_status_name: "edge-vsphere-9.4"
-          tf_scope: private
-          tmt_plan_regex: edge-vsphere
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }};GOVC_URL=${{ secrets.GOVC_URL }};GOVC_USERNAME=${{ secrets.GOVC_USERNAME }};GOVC_PASSWORD=${{ secrets.GOVC_PASSWORD }};GOVC_INSECURE=1"
-
-  edge-fdo-aio-94:
-    needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-fdo-aio')) }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4
-        with:
-          ref: ${{ needs.pr-info.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
-        with:
-          compose: RHEL-9.4.0-Nightly
-          arch: x86_64
-          api_key: ${{ secrets.TF_API_KEY }}
-          git_url: ${{ needs.pr-info.outputs.repo_url }}
-          git_ref: ${{ needs.pr-info.outputs.ref }}
-          update_pull_request_status: true
-          pull_request_status_name: "edge-fdo-aio-9.4"
-          tf_scope: private
-          tmt_plan_regex: edge-fdo-aio
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }}"
-
-  edge-fdo-db-94:
-    needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-fdo-db')) }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4
-        with:
-          ref: ${{ needs.pr-info.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
-        with:
-          compose: RHEL-9.4.0-Nightly
-          arch: x86_64
-          api_key: ${{ secrets.TF_API_KEY }}
-          git_url: ${{ needs.pr-info.outputs.repo_url }}
-          git_ref: ${{ needs.pr-info.outputs.ref }}
-          update_pull_request_status: true
-          pull_request_status_name: "edge-fdo-db-9.4"
-          tf_scope: private
-          tmt_plan_regex: edge-fdo-db
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }}"
-
-  edge-ignition-94:
-    needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-ignition')) }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4
-        with:
-          ref: ${{ needs.pr-info.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
-        with:
-          compose: RHEL-9.4.0-Nightly
-          arch: x86_64
-          api_key: ${{ secrets.TF_API_KEY }}
-          git_url: ${{ needs.pr-info.outputs.repo_url }}
-          git_ref: ${{ needs.pr-info.outputs.ref }}
-          update_pull_request_status: true
-          pull_request_status_name: "edge-ignition-9.4"
-          tf_scope: private
-          tmt_plan_regex: edge-ignition
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }}"
-
-  edge-pulp-94:
-    needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-pulp')) }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4
-        with:
-          ref: ${{ needs.pr-info.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
-        with:
-          compose: RHEL-9.4.0-Nightly
-          arch: x86_64
-          api_key: ${{ secrets.TF_API_KEY }}
-          git_url: ${{ needs.pr-info.outputs.repo_url }}
-          git_ref: ${{ needs.pr-info.outputs.ref }}
-          update_pull_request_status: true
-          pull_request_status_name: "edge-pulp-9.4"
-          tf_scope: private
-          tmt_plan_regex: edge-pulp
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }}"
-
-  edge-8to9-94:
-    needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-8to9')) }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4
-        with:
-          ref: ${{ needs.pr-info.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
-        with:
-          compose: RHEL-9.4.0-Nightly
-          arch: x86_64
-          api_key: ${{ secrets.TF_API_KEY }}
-          git_url: ${{ needs.pr-info.outputs.repo_url }}
-          git_ref: ${{ needs.pr-info.outputs.ref }}
-          update_pull_request_status: true
-          pull_request_status_name: "edge-8to9-9.4"
-          tf_scope: private
-          tmt_plan_regex: edge-8to9
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }}"
-
-  edge-9to9-94:
-    needs: pr-info
-    if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-9-4') ||
-            endsWith(github.event.comment.body, '/test-rhel-9-4-9to9')) }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4
-        with:
-          ref: ${{ needs.pr-info.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Run the tests
-        uses: sclorg/testing-farm-as-github-action@v1
-        with:
-          compose: RHEL-9.4.0-Nightly
-          arch: x86_64
-          api_key: ${{ secrets.TF_API_KEY }}
-          git_url: ${{ needs.pr-info.outputs.repo_url }}
-          git_ref: ${{ needs.pr-info.outputs.ref }}
-          update_pull_request_status: true
-          pull_request_status_name: "edge-9to9-9.4"
-          tf_scope: private
-          tmt_plan_regex: edge-9to9
-          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }}"
+          secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }};OCP4_TOKEN=${{ secrets.OCP4_TOKEN }};QUAY_USERNAME=${{ secrets.QUAY_USERNAME }};QUAY_PASSWORD=${{ secrets.QUAY_PASSWORD }};DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }};DOCKERHUB_PASSWORD=${{ secrets.DOCKERHUB_PASSWORD }};AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }};AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }};AWS_DEFAULT_REGION=us-east-1;GOVC_URL=${{ secrets.GOVC_URL }};GOVC_USERNAME=${{ secrets.GOVC_USERNAME }};GOVC_PASSWORD=${{ secrets.GOVC_PASSWORD }};GOVC_INSECURE=1"
+          timeout: 180
