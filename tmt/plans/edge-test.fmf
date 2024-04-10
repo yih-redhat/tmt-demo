@@ -1,4 +1,4 @@
-summary: Edge commit test
+summary: Edge test plan
 discover:
   how: fmf
   test: edge-test
@@ -6,71 +6,108 @@ execute:
   how: tmt
 provision:
   hardware:
-    memory: ">= 16 GB"
     virtualization:
       is-supported: true
+    cpu:
+      processors: ">= 2"
+    memory: ">= 6 GB"
 
-/edge-commit:
+/commit:
   summary: Test edge commit
   environment+:
     TEST_CASE: edge-commit
+  adjust+:
+    - when: arch != x86_64
+      enabled: false
 
-/edge-installer:
+/installer:
   summary: Test edge installer image
   environment+:
     TEST_CASE: edge-installer
+  adjust+:
+    - when: arch != x86_64
+      enabled: false
 
-/edge-raw-image:
+/raw-image:
   summary: Test edge raw image
   environment+:
     TEST_CASE: edge-raw-image
+  adjust+:
+    - when: arch != x86_64
+      enabled: false
 
-/edge-ami-image:
-  summary: Test edge ami image
-  environment+:
-    TEST_CASE: edge-ami-image
-
-/edge-simplified-installer:
+/simplified-installer:
   summary: Test edge simplified installer image
   environment+:
     TEST_CASE: edge-simplified-installer
+  adjust+:
+    - when: arch != x86_64
+      enabled: false
 
-/edge-minimal:
+/minimal:
   summary: Test edge minimal raw image
   environment+:
     TEST_CASE: edge-minimal
 
-/edge-vsphere:
-  summary: Test edge vsphere image
-  environment+:
-    TEST_CASE: edge-vsphere
-
-/edge-fdo-aio:
+/fdo-aio:
   summary: Test edge with fdo aio service
   environment+:
     TEST_CASE: edge-fdo-aio
+  adjust+:
+    - when: arch != x86_64
+      enabled: false
 
-/edge-fdo-db:
+/fdo-db:
   summary: Test edge with fdo package with db
   environment+:
     TEST_CASE: edge-fdo-db
+  adjust+:
+    - when: arch != x86_64
+      enabled: false
 
-/edge-ignition:
+/ignition:
   summary: Test edge ignition feature
   environment+:
     TEST_CASE: edge-ignition
+  adjust+:
+    - when: arch != x86_64
+      enabled: false
 
-/edge-pulp:
+/pulp:
   summary: Test edge pulp feature
   environment+:
     TEST_CASE: edge-pulp
+  adjust+:
+    - when: arch != x86_64
+      enabled: false
 
-/edge-8to9:
+/8to9:
   summary: Test edge upgrade from 8 to 9
   environment+:
     TEST_CASE: edge-8to9
+  adjust+:
+    - when: arch != x86_64
+      enabled: false
 
-/edge-9to9:
+/9to9:
   summary: Test edge rebase from 9 to 9
   environment+:
     TEST_CASE: edge-9to9
+  adjust+:
+    - when: arch != x86_64
+      enabled: false
+
+/ami-image:
+  summary: Test edge ami image
+  environment+:
+    TEST_CASE: edge-ami-image
+
+/vsphere:
+  summary: Test edge vsphere image
+  environment+:
+    TEST_CASE: edge-vsphere
+  adjust+:
+    - when: arch != x86_64
+      enabled: false
+
+
