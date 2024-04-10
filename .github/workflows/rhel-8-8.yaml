@@ -1,5 +1,5 @@
 ---
-name: Run Edge Test on RHEL 8.10.0
+name: Run Edge Test on RHEL 8.8.0
 
 on:
   issue_comment:
@@ -9,7 +9,7 @@ on:
 jobs:
   pr-info:
     if: ${{ github.event.issue.pull_request &&
-            (endsWith(github.event.comment.body, '/test-rhel-8-10')) }}
+            (endsWith(github.event.comment.body, '/test-rhel-8-8')) }}
     runs-on: ubuntu-latest
     steps:
       - name: Query author repository permissions
@@ -41,7 +41,7 @@ jobs:
       ref: ${{ fromJson(steps.pr-api.outputs.data).head.ref }}
       repo_url: ${{ fromJson(steps.pr-api.outputs.data).head.repo.html_url }}
 
-  edge-rhel-810-x86:
+  edge-rhel-88-x86:
     needs: pr-info
     if: ${{ needs.pr-info.outputs.allowed_user == 'true' && github.event.issue.pull_request }}
     continue-on-error: true
@@ -57,14 +57,14 @@ jobs:
       - name: Run the tests
         uses: sclorg/testing-farm-as-github-action@v2
         with:
-          compose: RHEL-8.10.0-Nightly
+          compose: RHEL-8.8.0-Nightly
           arch: x86_64
           api_key: ${{ secrets.TF_API_KEY }}
           git_url: ${{ needs.pr-info.outputs.repo_url }}
           git_ref: ${{ needs.pr-info.outputs.ref }}
           update_pull_request_status: true
-          tmt_context: "arch=x86_64;distro=rhel-8-10"
-          pull_request_status_name: "edge-rhel-8.10-x86"
+          tmt_context: "arch=x86_64;distro=rhel-8-8"
+          pull_request_status_name: "edge-rhel-8.8-x86"
           tmt_plan_regex: edge-x86
           tf_scope: private
           secrets: "DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }};OCP4_TOKEN=${{ secrets.OCP4_TOKEN }};QUAY_USERNAME=${{ secrets.QUAY_USERNAME }};QUAY_PASSWORD=${{ secrets.QUAY_PASSWORD }};DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }};DOCKERHUB_PASSWORD=${{ secrets.DOCKERHUB_PASSWORD }}"

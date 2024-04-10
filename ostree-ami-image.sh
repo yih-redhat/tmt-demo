@@ -42,13 +42,23 @@ EDGE_USER_PASSWORD=foobar
 sudo mkdir -p /etc/osbuild-composer/repositories
 
 case "${ID}-${VERSION_ID}" in
-    "rhel-9"*)
+    "rhel-9.3")
         OSTREE_REF="rhel/9/${ARCH}/edge"
         SYSROOT_RO="true"
+        ;;
+    "rhel-9.4")
+        OSTREE_REF="rhel/9/${ARCH}/edge"
+        SYSROOT_RO="true"
+        ;;
+    "rhel-9.5")
+        OSTREE_REF="rhel/9/${ARCH}/edge"
+        SYSROOT_RO="true"
+        ANSIBLE_OS_NAME="rhel-edge"
         ;;
     "centos-9")
         OSTREE_REF="centos/9/${ARCH}/edge"
         SYSROOT_RO="true"
+        ANSIBLE_OS_NAME="rhel-edge"
         ;;
     *)
         echo "unsupported distro: ${ID}-${VERSION_ID}"
@@ -84,7 +94,6 @@ get_compose_metadata () {
 
     # Move the JSON file into place.
     sudo cat "${TEMPDIR}"/"${COMPOSE_ID}".json | jq -M '.' | tee "$METADATA_FILE" > /dev/null
-    sudo chown admin:admin "${TEMPDIR}"/"${COMPOSE_ID}".json
 }
 
 # Build ostree image.

@@ -36,31 +36,11 @@ FEDORA_LOCAL_NAME="localhost/fedora-minimal:v1"
 
 # Set os-variant and boot location used by virt-install.
 case "${ID}-${VERSION_ID}" in
-    "rhel-8.6")
-        OSTREE_REF="rhel/8/${ARCH}/edge"
-        OS_VARIANT="rhel8-unknown"
-        USER_IN_COMMIT="true"
-        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-8/rel-eng/updates/RHEL-8/latest-RHEL-8.6.0/compose/BaseOS/x86_64/os/"
-        CUT_DIRS=9
-        ADD_SSSD="false"
-        DIRS_FILES_CUSTOMIZATION="false"
-        ;;
     "rhel-8.8")
         OSTREE_REF="rhel/8/${ARCH}/edge"
         USER_IN_COMMIT="true"
         OS_VARIANT="rhel8-unknown"
         BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-8/nightly/updates/RHEL-8/latest-RHEL-8.8.0/compose/BaseOS/x86_64/os/"
-        CUT_DIRS=9
-        ADD_SSSD="true"
-        EMBEDDED_CONTAINER="true"
-        FIREWALL_FEATURE="true"
-        DIRS_FILES_CUSTOMIZATION="true"
-        ;;
-    "rhel-8.9")
-        OSTREE_REF="rhel/8/${ARCH}/edge"
-        USER_IN_COMMIT="true"
-        OS_VARIANT="rhel8-unknown"
-        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-8/nightly/updates/RHEL-8/latest-RHEL-8.9.0/compose/BaseOS/x86_64/os/"
         CUT_DIRS=9
         ADD_SSSD="true"
         EMBEDDED_CONTAINER="true"
@@ -76,27 +56,6 @@ case "${ID}-${VERSION_ID}" in
         ADD_SSSD="true"
         EMBEDDED_CONTAINER="true"
         FIREWALL_FEATURE="true"
-        DIRS_FILES_CUSTOMIZATION="true"
-        ;;
-    "rhel-9.0")
-        OSTREE_REF="rhel/9/${ARCH}/edge"
-        USER_IN_COMMIT="true"
-        OS_VARIANT="rhel9.0"
-        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/rel-eng/updates/RHEL-9/latest-RHEL-9.0.0/compose/BaseOS/x86_64/os/"
-        CUT_DIRS=9
-        ADD_SSSD="false"
-        DIRS_FILES_CUSTOMIZATION="false"
-        ;;
-    "rhel-9.2")
-        OSTREE_REF="rhel/9/${ARCH}/edge"
-        USER_IN_COMMIT="true"
-        OS_VARIANT="rhel9-unknown"
-        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/updates/RHEL-9/latest-RHEL-9.2.0/compose/BaseOS/x86_64/os/"
-        CUT_DIRS=9
-        ADD_SSSD="true"
-        EMBEDDED_CONTAINER="true"
-        FIREWALL_FEATURE="true"
-        SYSROOT_RO="true"
         DIRS_FILES_CUSTOMIZATION="true"
         ;;
     "rhel-9.3")
@@ -115,22 +74,24 @@ case "${ID}-${VERSION_ID}" in
         OSTREE_REF="rhel/9/${ARCH}/edge"
         USER_IN_COMMIT="true"
         OS_VARIANT="rhel9-unknown"
-        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/RHEL-9/latest-RHEL-9.4.0/compose/BaseOS/x86_64/os/"
-        CUT_DIRS=8
+        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/updates/RHEL-9/latest-RHEL-9.4.0/compose/BaseOS/x86_64/os/"
+        CUT_DIRS=9
         ADD_SSSD="true"
         EMBEDDED_CONTAINER="true"
         FIREWALL_FEATURE="true"
         SYSROOT_RO="true"
         DIRS_FILES_CUSTOMIZATION="true"
         ;;
-    "centos-8")
-        OSTREE_REF="centos/8/${ARCH}/edge"
+    "rhel-9.5")
+        OSTREE_REF="rhel/9/${ARCH}/edge"
         USER_IN_COMMIT="true"
-        OS_VARIANT="centos-stream8"
-        CUT_DIRS=7
+        OS_VARIANT="rhel9-unknown"
+        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/RHEL-9/latest-RHEL-9.5.0/compose/BaseOS/x86_64/os/"
+        CUT_DIRS=8
         ADD_SSSD="true"
         EMBEDDED_CONTAINER="true"
         FIREWALL_FEATURE="true"
+        SYSROOT_RO="true"
         DIRS_FILES_CUSTOMIZATION="true"
         ;;
     "centos-9")
@@ -142,17 +103,6 @@ case "${ID}-${VERSION_ID}" in
         EMBEDDED_CONTAINER="true"
         BOOT_ARGS="uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no"
         FIREWALL_FEATURE="true"
-        SYSROOT_RO="true"
-        DIRS_FILES_CUSTOMIZATION="true"
-        ;;
-    "fedora-38")
-        IMAGE_TYPE=fedora-iot-commit
-        USER_IN_COMMIT="false"
-        OSTREE_REF="fedora/38/${ARCH}/iot"
-        OS_VARIANT="fedora-unknown"
-        BOOT_LOCATION="https://dl.fedoraproject.org/pub/fedora/linux/releases/38/Everything/x86_64/os/"
-        CUT_DIRS=8
-        ADD_SSSD="false"
         SYSROOT_RO="true"
         DIRS_FILES_CUSTOMIZATION="true"
         ;;
@@ -171,13 +121,24 @@ case "${ID}-${VERSION_ID}" in
         IMAGE_TYPE=fedora-iot-commit
         USER_IN_COMMIT="false"
         OSTREE_REF="fedora/40/${ARCH}/iot"
-        OS_VARIANT="fedora-rawhide"
-        BOOT_LOCATION="https://dl.fedoraproject.org/pub/fedora/linux/development/rawhide/Everything/x86_64/os/"
+        OS_VARIANT="fedora-unknown"
+        BOOT_LOCATION="https://dl.fedoraproject.org/pub/fedora/linux/development/40/Everything/x86_64/os/"
         CUT_DIRS=8
         ADD_SSSD="false"
         SYSROOT_RO="true"
         DIRS_FILES_CUSTOMIZATION="true"
         ;;
+#     "fedora-41")
+#         IMAGE_TYPE=fedora-iot-commit
+#         USER_IN_COMMIT="false"
+#         OSTREE_REF="fedora/41/${ARCH}/iot"
+#         OS_VARIANT="fedora-rawhide"
+#         BOOT_LOCATION="https://dl.fedoraproject.org/pub/fedora/linux/development/rawhide/Everything/x86_64/os/"
+#         CUT_DIRS=8
+#         ADD_SSSD="false"
+#         SYSROOT_RO="true"
+#         DIRS_FILES_CUSTOMIZATION="true"
+#         ;;
     *)
         echo "unsupported distro: ${ID}-${VERSION_ID}"
         exit 1;;
@@ -739,7 +700,7 @@ ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/
 EOF
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${OS_NAME}" -e ostree_commit="${UPGRADE_HASH}" -e ostree_ref="${OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e firewall_feature="${FIREWALL_FEATURE}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
+podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${OS_NAME}" -e ostree_commit="${UPGRADE_HASH}" -e ostree_ref="${OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e firewall_feature="${FIREWALL_FEATURE}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
 check_result
 
 # Final success clean up

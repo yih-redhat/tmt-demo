@@ -37,24 +37,32 @@ case "${ID}-${VERSION_ID}" in
     "rhel-8"*)
         OS_VARIANT="rhel8-unknown"
         ;;
-    "rhel-9"*)
+    "rhel-9.3")
         OS_VARIANT="rhel9-unknown"
         ;;
-    "centos-8")
-        OS_VARIANT="centos-stream8"
+    "rhel-9.4")
+        OS_VARIANT="rhel9-unknown"
+        ;;
+    "rhel-9.5")
+        OS_VARIANT="rhel9-unknown"
+        MINIMAL_RAW_DECOMPRESSED=disk.raw
+        MINIMAL_RAW_FILENAME=disk.raw.xz
         ;;
     "centos-9")
         OS_VARIANT="centos-stream9"
+        MINIMAL_RAW_DECOMPRESSED=disk.raw
+        MINIMAL_RAW_FILENAME=disk.raw.xz
         BOOT_ARGS="uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no"
-        ;;
-    "fedora-38")
-        OS_VARIANT="fedora-unknown"
         ;;
     "fedora-39")
         OS_VARIANT="fedora-unknown"
+        MINIMAL_RAW_DECOMPRESSED=disk.raw
+        MINIMAL_RAW_FILENAME=disk.raw.xz
         ;;
     "fedora-40")
         OS_VARIANT="fedora-rawhide"
+        MINIMAL_RAW_DECOMPRESSED=disk.raw
+        MINIMAL_RAW_FILENAME=disk.raw.xz
         ;;
     *)
         echo "unsupported distro: ${ID}-${VERSION_ID}"
@@ -317,7 +325,7 @@ ansible_become_pass=${EDGE_USER_PASSWORD}
 EOF
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm "quay.io/rhel-edge/ansible-runner:${ARCH}" ansible-playbook -v -i /tmp/inventory -e download_node="$DOWNLOAD_NODE" check-minimal.yaml || RESULTS=0
+podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm "quay.io/rhel-edge/ansible-runner:${ARCH}" ansible-playbook -v -i /tmp/inventory -e download_node="$DOWNLOAD_NODE" check-minimal.yaml || RESULTS=0
 check_result
 
 # Final success clean up

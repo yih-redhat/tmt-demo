@@ -38,15 +38,6 @@ CONTAINER_FILENAME=container.tar
 SYSROOT_RO="false"
 
 case "${ID}-${VERSION_ID}" in
-    "rhel-9.2")
-        OS_VARIANT="rhel9-unknown"
-        PARENT_REF="rhel/9/${ARCH}/edge"
-        OSTREE_REF="rhel/9/${ARCH}/edge"
-        OSTREE_REBASE_REF="rhel/92/${ARCH}/edge"
-        DISTRO="rhel-91"
-        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/rel-eng/updates/RHEL-9/latest-RHEL-9.1.0/compose/BaseOS/x86_64/os/"
-        SYSROOT_RO="true"
-        ;;
     "rhel-9.3")
         OS_VARIANT="rhel9-unknown"
         PARENT_REF="rhel/9/${ARCH}/edge"
@@ -62,7 +53,16 @@ case "${ID}-${VERSION_ID}" in
         OSTREE_REF="rhel/9/${ARCH}/edge"
         OSTREE_REBASE_REF="rhel/94/${ARCH}/edge"
         DISTRO="rhel-93"
-        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/RHEL-9/latest-RHEL-9.4.0/compose/BaseOS/x86_64/os/"
+        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/updates/RHEL-9/latest-RHEL-9.4.0/compose/BaseOS/x86_64/os/"
+        SYSROOT_RO="true"
+        ;;
+    "rhel-9.5")
+        OS_VARIANT="rhel9-unknown"
+        PARENT_REF="rhel/9/${ARCH}/edge"
+        OSTREE_REF="rhel/9/${ARCH}/edge"
+        OSTREE_REBASE_REF="rhel/95/${ARCH}/edge"
+        DISTRO="rhel-94"
+        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/RHEL-9/latest-RHEL-9.5.0/compose/BaseOS/x86_64/os/"
         SYSROOT_RO="true"
         ;;
     *)
@@ -217,7 +217,7 @@ clean_up () {
     sudo virsh vol-delete --pool images "${IMAGE_KEY}-uefi.qcow2"
 
     # Remove all the containers and images if exist
-    # sudo podman system reset --force
+    sudo podman system reset --force
 
     # Remomve tmp dir.
     sudo rm -rf "$TEMPDIR"

@@ -52,22 +52,7 @@ sudo mkdir -p /etc/osbuild-composer/repositories
 # The RO setting on RHEL 8.8 and CS8 is not configured by ostree, but osbuild-composer
 # by PR https://github.com/osbuild/osbuild-composer/pull/3178
 case "${ID}-${VERSION_ID}" in
-    "rhel-8.6")
-        OSTREE_REF="rhel/8/${ARCH}/edge"
-        PARENT_REF="rhel/8/${ARCH}/edge"
-        OS_VARIANT="rhel8-unknown"
-        ADD_SSSD="false"
-        USER_IN_RAW="false"
-        ;;
     "rhel-8.8")
-        OSTREE_REF="rhel/8/${ARCH}/edge"
-        PARENT_REF="rhel/8/${ARCH}/edge"
-        OS_VARIANT="rhel8-unknown"
-        ADD_SSSD="true"
-        USER_IN_RAW="true"
-        SYSROOT_RO="false"
-        ;;
-    "rhel-8.9")
         OSTREE_REF="rhel/8/${ARCH}/edge"
         PARENT_REF="rhel/8/${ARCH}/edge"
         OS_VARIANT="rhel8-unknown"
@@ -82,21 +67,6 @@ case "${ID}-${VERSION_ID}" in
         ADD_SSSD="true"
         USER_IN_RAW="true"
         SYSROOT_RO="false"
-        ;;
-    "rhel-9.0")
-        OSTREE_REF="rhel/9/${ARCH}/edge"
-        PARENT_REF="rhel/9/${ARCH}/edge"
-        OS_VARIANT="rhel9.0"
-        ADD_SSSD="false"
-        USER_IN_RAW="false"
-        ;;
-    "rhel-9.2")
-        OSTREE_REF="rhel/9/${ARCH}/edge"
-        PARENT_REF="rhel/9/${ARCH}/edge"
-        OS_VARIANT="rhel9-unknown"
-        ADD_SSSD="true"
-        USER_IN_RAW="true"
-        SYSROOT_RO="true"
         ;;
     "rhel-9.3")
         OSTREE_REF="rhel/9/${ARCH}/edge"
@@ -114,15 +84,14 @@ case "${ID}-${VERSION_ID}" in
         USER_IN_RAW="true"
         SYSROOT_RO="true"
         ;;
-    "centos-8")
-        OSTREE_REF="centos/8/${ARCH}/edge"
-        PARENT_REF="centos/8/${ARCH}/edge"
-        OS_VARIANT="centos-stream8"
+    "rhel-9.5")
+        OSTREE_REF="rhel/9/${ARCH}/edge"
+        PARENT_REF="rhel/9/${ARCH}/edge"
+        OS_VARIANT="rhel9-unknown"
         ADD_SSSD="true"
         USER_IN_RAW="true"
-        SYSROOT_RO="false"
-        # workaround issue #2640
-        BOOT_ARGS="loader=/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd,loader.readonly=yes,loader.secure='no',loader.type=pflash,nvram=/usr/share/edk2/ovmf/OVMF_VARS.fd"
+        SYSROOT_RO="true"
+        ANSIBLE_OS_NAME="rhel-edge"
         ;;
     "centos-9")
         OSTREE_REF="centos/9/${ARCH}/edge"
@@ -132,17 +101,7 @@ case "${ID}-${VERSION_ID}" in
         BOOT_ARGS="uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no"
         USER_IN_RAW="true"
         SYSROOT_RO="true"
-        ;;
-    "fedora-38")
-        CONTAINER_TYPE=fedora-iot-container
-        RAW_TYPE=iot-raw-image
-        OSTREE_REF="fedora/38/${ARCH}/iot"
-        OS_VARIANT="fedora-unknown"
-        ADD_SSSD="false"
-        ANSIBLE_OS_NAME="fedora-iot"
-        USER_IN_RAW="true"
-        REF_PREFIX="fedora-iot"
-        SYSROOT_RO="true"
+        ANSIBLE_OS_NAME="rhel-edge"
         ;;
     "fedora-39")
         CONTAINER_TYPE=fedora-iot-container
@@ -608,7 +567,7 @@ ansible_become_pass=${EDGE_USER_PASSWORD}
 EOF
 
     # Test IoT/Edge OS
-    podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
+    podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
     check_result
 
     ##################################################################
@@ -744,7 +703,7 @@ ansible_become_pass=${EDGE_USER_PASSWORD}
 EOF
 
     # Test IoT/Edge OS
-    podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${REBASE_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
+    podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${REBASE_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
 
     check_result
 
@@ -838,7 +797,7 @@ ansible_become_pass=${EDGE_USER_PASSWORD}
 EOF
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
+podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
 check_result
 
 ##################################################################
@@ -991,7 +950,7 @@ ansible_become_pass=${EDGE_USER_PASSWORD}
 EOF
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${UPGRADE_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
+podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${UPGRADE_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
 check_result
 
 # Final success clean up

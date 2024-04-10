@@ -44,6 +44,7 @@ INSTALLER_FILENAME=simplified-installer.iso
 REF_PREFIX="rhel-edge"
 # Workaround BZ#2108646
 BOOT_ARGS="uefi"
+OS_NAME="redhat"
 
 # Set up temporary files.
 TEMPDIR=$(mktemp -d)
@@ -72,23 +73,7 @@ sudo mkdir -p /etc/osbuild-composer/repositories
 # The RO setting on RHEL 8.8 and CS8 is not configured by ostree, but osbuild-composer
 # by PR https://github.com/osbuild/osbuild-composer/pull/3178
 case "${ID}-${VERSION_ID}" in
-    "rhel-8.6")
-        OSTREE_REF="rhel/8/${ARCH}/edge"
-        PARENT_REF="rhel/8/${ARCH}/edge"
-        OS_VARIANT="rhel8-unknown"
-        IMAGE_NAME="disk.img.xz"
-        sudo mkdir -p /var/lib/fdo
-        ;;
     "rhel-8.8")
-        OSTREE_REF="rhel/8/${ARCH}/edge"
-        PARENT_REF="rhel/8/${ARCH}/edge"
-        OS_VARIANT="rhel8-unknown"
-        IMAGE_NAME="image.raw.xz"
-        USER_IN_BLUEPRINT="true"
-        BLUEPRINT_USER="simple"
-        sudo mkdir -p /var/lib/fdo
-        ;;
-    "rhel-8.9")
         OSTREE_REF="rhel/8/${ARCH}/edge"
         PARENT_REF="rhel/8/${ARCH}/edge"
         OS_VARIANT="rhel8-unknown"
@@ -102,25 +87,6 @@ case "${ID}-${VERSION_ID}" in
         PARENT_REF="rhel/8/${ARCH}/edge"
         OS_VARIANT="rhel8-unknown"
         IMAGE_NAME="image.raw.xz"
-        USER_IN_BLUEPRINT="true"
-        BLUEPRINT_USER="simple"
-        sudo mkdir -p /var/lib/fdo
-        ;;
-    "rhel-9.0")
-        OSTREE_REF="rhel/9/${ARCH}/edge"
-        PARENT_REF="rhel/9/${ARCH}/edge"
-        OS_VARIANT="rhel9.0"
-        IMAGE_NAME="disk.img.xz"
-        sudo mkdir -p /var/lib/fdo
-        ;;
-    "rhel-9.2")
-        OSTREE_REF="rhel/9/${ARCH}/edge"
-        PARENT_REF="rhel/9/${ARCH}/edge"
-        OS_VARIANT="rhel9-unknown"
-        IMAGE_NAME="image.raw.xz"
-        SYSROOT_RO="true"
-        ANSIBLE_USER=fdouser
-        FDO_USER_ONBOARDING="true"
         USER_IN_BLUEPRINT="true"
         BLUEPRINT_USER="simple"
         sudo mkdir -p /var/lib/fdo
@@ -147,19 +113,17 @@ case "${ID}-${VERSION_ID}" in
         USER_IN_BLUEPRINT="true"
         BLUEPRINT_USER="simple"
         ;;
-    "centos-8")
-        OSTREE_REF="centos/8/${ARCH}/edge"
-        PARENT_REF="centos/8/${ARCH}/edge"
-        OS_VARIANT="centos-stream8"
+    "rhel-9.5")
+        OSTREE_REF="rhel/9/${ARCH}/edge"
+        PARENT_REF="rhel/9/${ARCH}/edge"
+        OS_VARIANT="rhel9-unknown"
         IMAGE_NAME="image.raw.xz"
+        SYSROOT_RO="true"
+        ANSIBLE_USER=fdouser
+        FDO_USER_ONBOARDING="true"
         USER_IN_BLUEPRINT="true"
         BLUEPRINT_USER="simple"
-        # workaround issue #2640
-        BOOT_ARGS="loader=/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd,loader.readonly=yes,loader.secure=no,loader.type=pflash,nvram=/usr/share/edk2/ovmf/OVMF_VARS.fd"
-        # sometimes the file /usr/share/edk2/ovmf/OVMF_VARS.fd got deleted after virt-install
-        # a workaround for this issue
-        sudo cp /usr/share/edk2/ovmf/OVMF_VARS.fd /tmp/
-        sudo mkdir -p /var/lib/fdo
+        OS_NAME="rhel-edge"
         ;;
     "centos-9")
         OSTREE_REF="centos/9/${ARCH}/edge"
@@ -172,6 +136,7 @@ case "${ID}-${VERSION_ID}" in
         FDO_USER_ONBOARDING="true"
         USER_IN_BLUEPRINT="true"
         BLUEPRINT_USER="simple"
+        OS_NAME="rhel-edge"
         ;;
     *)
         echo "unsupported distro: ${ID}-${VERSION_ID}"
@@ -626,7 +591,7 @@ ansible_become_pass=${EDGE_USER_PASSWORD}
 EOF
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name=redhat -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e fdo_credential="true" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
+podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${OS_NAME}" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e fdo_credential="true" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
 
 # Check test result
 check_result
@@ -774,7 +739,7 @@ if [[ "$ANSIBLE_USER" == "fdouser" ]]; then
 fi
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name=redhat -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e fdo_credential="true" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
+podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${OS_NAME}" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e fdo_credential="true" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
 
 # Check test result
 check_result
@@ -912,7 +877,7 @@ if [[ "$ANSIBLE_USER" == "fdouser" ]]; then
 fi
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name=redhat -e ostree_commit="${REBASE_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e fdo_credential="true" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
+podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${OS_NAME}" -e ostree_commit="${REBASE_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e fdo_credential="true" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
 
 # Check test result
 check_result
@@ -1054,7 +1019,7 @@ ansible_become_pass=${EDGE_USER_PASSWORD}
 EOF
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name=redhat -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e fdo_credential="true" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
+podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${OS_NAME}" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e fdo_credential="true" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
 
 # Check test result
 check_result
@@ -1188,7 +1153,7 @@ ansible_become_pass=${EDGE_USER_PASSWORD}
 EOF
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name=redhat -e ostree_commit="${UPGRADE_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e fdo_credential="true" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
+podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${OS_NAME}" -e ostree_commit="${UPGRADE_HASH}" -e ostree_ref="${REF_PREFIX}:${OSTREE_REF}" -e fdo_credential="true" -e sysroot_ro="$SYSROOT_RO" check-ostree.yaml || RESULTS=0
 
 # Check test result
 check_result

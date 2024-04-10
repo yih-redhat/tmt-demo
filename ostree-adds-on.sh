@@ -35,12 +35,6 @@ CONTAINER_IMAGE_TYPE=edge-container
 CONTAINER_FILENAME=container.tar
 
 case "${ID}-${VERSION_ID}" in
-    "rhel-9.2")
-        PARENT_REF="rhel/9/${ARCH}/edge"
-        OSTREE_REF="rhel/9/${ARCH}/edge"
-        OSTREE_REBASE_REF="rhel/9x/${ARCH}/edge"
-        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/updates/RHEL-9/latest-RHEL-9.2.0/compose/BaseOS/x86_64/os/"
-        ;;
     "rhel-9.3")
         PARENT_REF="rhel/9/${ARCH}/edge"
         OSTREE_REF="rhel/9/${ARCH}/edge"
@@ -51,7 +45,13 @@ case "${ID}-${VERSION_ID}" in
         PARENT_REF="rhel/9/${ARCH}/edge"
         OSTREE_REF="rhel/9/${ARCH}/edge"
         OSTREE_REBASE_REF="rhel/9x/${ARCH}/edge"
-        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/RHEL-9/latest-RHEL-9.4.0/compose/BaseOS/x86_64/os/"
+        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/updates/RHEL-9/latest-RHEL-9.4.0/compose/BaseOS/x86_64/os/"
+        ;;
+    "rhel-9.5")
+        PARENT_REF="rhel/9/${ARCH}/edge"
+        OSTREE_REF="rhel/9/${ARCH}/edge"
+        OSTREE_REBASE_REF="rhel/9x/${ARCH}/edge"
+        BOOT_LOCATION="http://${DOWNLOAD_NODE}/rhel-9/nightly/RHEL-9/latest-RHEL-9.5.0/compose/BaseOS/x86_64/os/"
         ;;
     *)
         echo "unsupported distro: ${ID}-${VERSION_ID}"

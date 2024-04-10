@@ -18,8 +18,8 @@ UEFI_GUEST_ADDRESS=192.168.100.51
 HTTP_GUEST_ADDRESS=192.168.100.52
 PROD_REPO=/var/www/html/repo
 STAGE_REPO_ADDRESS=192.168.200.1
-STAGE_OCP4_SERVER_NAME="edge-stage-server"
-STAGE_OCP4_REPO_URL="http://${STAGE_OCP4_SERVER_NAME}-${QUAY_REPO_TAG}-rhel-edge.apps.ocp-c1.prod.psi.redhat.com/repo/"
+STAGE_OCP4_ADDRESS=192.168.200.2
+STAGE_OCP4_REPO_URL="http://${STAGE_OCP4_ADDRESS}:8080/repo/"
 CONTAINER_IMAGE_TYPE=edge-container
 INSTALLER_IMAGE_TYPE=edge-installer
 CONTAINER_FILENAME=container.tar
@@ -64,20 +64,7 @@ NEW_MKKSISO="false"
 SYSROOT_RO="false"
 
 case "${ID}-${VERSION_ID}" in
-    "rhel-8.6")
-        OSTREE_REF="rhel/8/${ARCH}/edge"
-        OS_VARIANT="rhel8-unknown"
-        DIRS_FILES_CUSTOMIZATION="false"
-        ;;
     "rhel-8.8")
-        OSTREE_REF="rhel/8/${ARCH}/edge"
-        OS_VARIANT="rhel8-unknown"
-        CONTAINER_PUSHING_FEAT="true"
-        EMBEDDED_CONTAINER="true"
-        HTTP_BOOT_FEAT="true"
-        DIRS_FILES_CUSTOMIZATION="true"
-        ;;
-    "rhel-8.9")
         OSTREE_REF="rhel/8/${ARCH}/edge"
         OS_VARIANT="rhel8-unknown"
         CONTAINER_PUSHING_FEAT="true"
@@ -91,21 +78,6 @@ case "${ID}-${VERSION_ID}" in
         CONTAINER_PUSHING_FEAT="true"
         EMBEDDED_CONTAINER="true"
         HTTP_BOOT_FEAT="true"
-        DIRS_FILES_CUSTOMIZATION="true"
-        ;;
-    "rhel-9.0")
-        OSTREE_REF="rhel/9/${ARCH}/edge"
-        OS_VARIANT="rhel9.0"
-        DIRS_FILES_CUSTOMIZATION="false"
-        ;;
-    "rhel-9.2")
-        OSTREE_REF="rhel/9/${ARCH}/edge"
-        OS_VARIANT="rhel9-unknown"
-        NEW_MKKSISO="true"
-        CONTAINER_PUSHING_FEAT="true"
-        EMBEDDED_CONTAINER="true"
-        HTTP_BOOT_FEAT="true"
-        SYSROOT_RO="true"
         DIRS_FILES_CUSTOMIZATION="true"
         ;;
     "rhel-9.3")
@@ -128,14 +100,16 @@ case "${ID}-${VERSION_ID}" in
         SYSROOT_RO="true"
         DIRS_FILES_CUSTOMIZATION="true"
         ;;
-    "centos-8")
-        OSTREE_REF="centos/8/${ARCH}/edge"
-        OS_VARIANT="centos-stream8"
+    "rhel-9.5")
+        OSTREE_REF="rhel/9/${ARCH}/edge"
+        OS_VARIANT="rhel9-unknown"
+        NEW_MKKSISO="true"
         CONTAINER_PUSHING_FEAT="true"
         EMBEDDED_CONTAINER="true"
+        HTTP_BOOT_FEAT="true"
+        SYSROOT_RO="true"
         DIRS_FILES_CUSTOMIZATION="true"
-        # workaround issue #2640
-        BOOT_ARGS="loader=/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd,loader.readonly=yes,loader.secure='no',loader.type=pflash,nvram=/usr/share/edk2/ovmf/OVMF_VARS.fd"
+        ANSIBLE_OS_NAME="rhel-edge"
         ;;
     "centos-9")
         OSTREE_REF="centos/9/${ARCH}/edge"
@@ -146,15 +120,7 @@ case "${ID}-${VERSION_ID}" in
         BOOT_ARGS="uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no"
         SYSROOT_RO="true"
         DIRS_FILES_CUSTOMIZATION="true"
-        ;;
-    "fedora-38")
-        CONTAINER_IMAGE_TYPE=fedora-iot-container
-        INSTALLER_IMAGE_TYPE=fedora-iot-installer
-        OSTREE_REF="fedora-iot/38/${ARCH}/iot"
-        OS_VARIANT="fedora-unknown"
-        ANSIBLE_OS_NAME="fedora-iot"
-        SYSROOT_RO="true"
-        DIRS_FILES_CUSTOMIZATION="true"
+        ANSIBLE_OS_NAME="rhel-edge"
         ;;
     "fedora-39")
         CONTAINER_IMAGE_TYPE=fedora-iot-container
@@ -528,7 +494,7 @@ EOF
 EOF
     # Test IoT/Edge OS
     greenprint "📼 Run Edge tests on HTTPBOOT VM"
-    podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${ANSIBLE_OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
+    podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="rhel" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="rhel:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
     check_result
 
     greenprint "🧹 Clean up HTTPBOOT VM"
@@ -664,27 +630,21 @@ fi
 greenprint "Prepare container network"
 sudo podman network inspect edge >/dev/null 2>&1 || sudo podman network create --driver=bridge --subnet=192.168.200.0/24 --gateway=192.168.200.254 edge
 
-# Run stage repo in OCP4
-greenprint "Running stage repo in OCP4"
-oc login --token="${OCP4_TOKEN}" --server=https://api.ocp-c1.prod.psi.redhat.com:6443 -n rhel-edge --insecure-skip-tls-verify
-oc process -f tools/edge-stage-server-template.yaml -p EDGE_STAGE_REPO_TAG="${QUAY_REPO_TAG}" -p EDGE_STAGE_SERVER_NAME="${STAGE_OCP4_SERVER_NAME}" | oc apply -f -
+# Run stage repo in podman instead of OCP4
+QUAY_REPO_URL_AUX=$(echo ${QUAY_REPO_URL} | grep -oP '(quay.*)')
+sudo podman pull "${QUAY_REPO_URL_AUX}:${QUAY_REPO_TAG}"
+sudo podman images
+STAGE_PODMAN_IMAGE_ID=$(sudo podman images --format "{{.ID}}")
+sudo podman run -d --name test-ocp4-container --network edge --ip "${STAGE_OCP4_ADDRESS}" "${STAGE_PODMAN_IMAGE_ID}"
 
-for _ in $(seq 0 60); do
-    RETURN_CODE=$(curl -o /dev/null -s -w "%{http_code}" "${STAGE_OCP4_REPO_URL}refs/heads/${OSTREE_REF}")
-    if [[ $RETURN_CODE == 200 ]]; then
-        echo "Stage repo is ready"
-        break
-    fi
-    sleep 10
-done
+# Wait for container to be running
+until [ "$(sudo podman inspect -f '{{.State.Running}}' test-ocp4-container)" == "true" ]; do
+    sleep 1;
+done;
 
 # Sync installer ostree content
 greenprint "Sync ostree repo with stage repo"
 sudo ostree --repo="$PROD_REPO" pull --mirror edge-stage-ocp4 "$OSTREE_REF"
-
-# Clean up OCP4
-greenprint "Clean up OCP4"
-oc delete pod,rc,service,route,dc -l app="${STAGE_OCP4_SERVER_NAME}-${QUAY_REPO_TAG}"
 
 # Clean compose and blueprints.
 greenprint "🧹 Clean up compose"
@@ -693,6 +653,10 @@ sudo composer-cli blueprints delete container > /dev/null
 
 greenprint "Remove tag from quay.io repo"
 skopeo delete --creds "${QUAY_USERNAME}:${QUAY_PASSWORD}" "${QUAY_REPO_URL}:${QUAY_REPO_TAG}"
+
+greenprint "Remove OCP4 container and image"
+sudo podman rm -f test-ocp4-container
+sudo podman rmi -f "${STAGE_PODMAN_IMAGE_ID}"
 
 ########################################################
 ##
@@ -833,7 +797,7 @@ EOF
 
 # Test IoT/Edge OS
 greenprint "📼 Run Edge tests on BIOS VM"
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${ANSIBLE_OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
+podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${INSTALL_HASH}" -e ostree_ref="${ANSIBLE_OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
 check_result
 
 # Clean BIOS VM
@@ -914,7 +878,7 @@ version = "*"
 EOF
 
 # ANSIBLE_OS_NAME is a check-ostree.yaml playbook variable defined as "rhel" just for RHEL and CS systems, otherwise is "fedora"
-if [[ "${ANSIBLE_OS_NAME}" == "rhel" ]]; then
+if [[ "${ANSIBLE_OS_NAME}" == "rhel" || "${ANSIBLE_OS_NAME}" == "rhel-edge" ]]; then
     tee -a "$BLUEPRINT_FILE" >> /dev/null << EOF
 [customizations.kernel]
 name = "kernel-rt"
@@ -1052,7 +1016,7 @@ ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/
 EOF
 
 # Test IoT/Edge OS
-podman run --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${UPGRADE_HASH}" -e ostree_ref="${ANSIBLE_OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
+podman run --network=host --annotation run.oci.keep_original_groups=1 -v "$(pwd)":/work:z -v "${TEMPDIR}":/tmp:z --rm quay.io/rhel-edge/ansible-runner:latest ansible-playbook -v -i /tmp/inventory -e os_name="${ANSIBLE_OS_NAME}" -e ostree_commit="${UPGRADE_HASH}" -e ostree_ref="${ANSIBLE_OS_NAME}:${OSTREE_REF}" -e embedded_container="${EMBEDDED_CONTAINER}" -e sysroot_ro="$SYSROOT_RO" -e test_custom_dirs_files="${DIRS_FILES_CUSTOMIZATION}" check-ostree.yaml || RESULTS=0
 check_result
 
 # Final success clean up

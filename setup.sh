@@ -40,9 +40,6 @@ function greenprint {
 sudo dnf install -y glibc-langpack-en
 sudo localectl set-locale LANG=en_US.UTF-8
 
-# Install openshift client
-# curl https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz | sudo tar -xz -C /usr/local/bin/
-
 # Install required packages
 greenprint "Install required packages"
 sudo dnf install -y --nogpgcheck httpd osbuild osbuild-composer composer-cli podman skopeo wget firewalld lorax xorriso curl jq expect qemu-img qemu-kvm libvirt-client libvirt-daemon-kvm libvirt-daemon virt-install rpmdevtools createrepo_c
@@ -83,6 +80,13 @@ case "${ID}-${VERSION_ID}" in
         sed "s/REPLACE_ME_HERE/${DOWNLOAD_NODE}/g" files/rhel-9-2-0.json | sudo tee /etc/osbuild-composer/repositories/rhel-92.json > /dev/null
         sed "s/REPLACE_ME_HERE/${DOWNLOAD_NODE}/g" files/rhel-9-3-0.json | sudo tee /etc/osbuild-composer/repositories/rhel-93.json > /dev/null
         sed "s/REPLACE_ME_HERE/${DOWNLOAD_NODE}/g" files/rhel-9-4-0.json | sudo tee /etc/osbuild-composer/repositories/rhel-94.json > /dev/null;;
+    "rhel-9.5")
+        sed "s/REPLACE_ME_HERE/${DOWNLOAD_NODE}/g" files/rhel-8-10-0-sha512.json | sudo tee /etc/osbuild-composer/repositories/rhel-810.json > /dev/null
+        sed "s/REPLACE_ME_HERE/${DOWNLOAD_NODE}/g" files/rhel-9-1-0.json | sudo tee /etc/osbuild-composer/repositories/rhel-91.json > /dev/null
+        sed "s/REPLACE_ME_HERE/${DOWNLOAD_NODE}/g" files/rhel-9-2-0.json | sudo tee /etc/osbuild-composer/repositories/rhel-92.json > /dev/null
+        sed "s/REPLACE_ME_HERE/${DOWNLOAD_NODE}/g" files/rhel-9-3-0.json | sudo tee /etc/osbuild-composer/repositories/rhel-93.json > /dev/null
+        sed "s/REPLACE_ME_HERE/${DOWNLOAD_NODE}/g" files/rhel-9-4-0.json | sudo tee /etc/osbuild-composer/repositories/rhel-94.json > /dev/null
+        sed "s/REPLACE_ME_HERE/${DOWNLOAD_NODE}/g" files/rhel-9-5-0.json | sudo tee /etc/osbuild-composer/repositories/rhel-95.json > /dev/null;;
     "centos-8")
         sudo cp files/centos-stream-8.json /etc/osbuild-composer/repositories/centos-8.json;;
     "centos-9")
@@ -144,7 +148,7 @@ sudo systemctl start libvirtd
 sudo virsh list --all > /dev/null
 
 # Set a customized dnsmasq configuration for libvirt so we always get the
-# same address on bootup.
+# same address on boot-up.
 greenprint "💡 Setup libvirt network"
 sudo tee /tmp/integration.xml > /dev/null << EOF
 <network xmlns:dnsmasq='http://libvirt.org/schemas/network/dnsmasq/1.0'>
@@ -232,3 +236,9 @@ sudo composer-cli sources list
 for SOURCE in $(sudo composer-cli sources list); do
     sudo composer-cli sources info "$SOURCE"
 done
+
+# In case port 8081 is already in use
+sudo dnf install -y lsof
+if lsof -nP -iTCP -sTCP:LISTEN|grep 8081; then
+    sudo fuser -k 8081/tcp
+fi
