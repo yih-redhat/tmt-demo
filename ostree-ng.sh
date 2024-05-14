@@ -11,7 +11,7 @@ source /etc/os-release
 ARCH=$(uname -m)
 TEST_UUID=$(uuidgen)
 IMAGE_KEY="ostree-ng-${TEST_UUID}"
-QUAY_REPO_URL="docker://quay.io/rhel-edge/edge-containers"
+QUAY_REPO_URL="docker://quay.io/yih_redhat/edge-containers"
 QUAY_REPO_TAG=$(tr -dc a-z0-9 < /dev/urandom | head -c 4 ; echo '')
 BIOS_GUEST_ADDRESS=192.168.100.50
 UEFI_GUEST_ADDRESS=192.168.100.51
