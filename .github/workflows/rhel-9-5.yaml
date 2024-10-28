@@ -13,6 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Add new compose id in compose.95
+        run: |
+          echo 123456 >> compose/compose.95
+          cat compose/compose.95
+
       - name: Create Pull Request
         id: cpr
         uses: peter-evans/create-pull-request@v4
