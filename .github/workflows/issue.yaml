@@ -8,5 +8,5 @@ jobs:
       - name: Create or Update Project Card
         uses: peter-evans/create-or-update-project-card@v3
         with:
-          project-name: rhel-project1
+          project-name: pro111
           column-name: RHEL-9-5
