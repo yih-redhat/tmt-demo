@@ -2,7 +2,7 @@
 
 RHEL-Edge help [documentation](HELP.md)
 
-## RHEL-Edge Test Scope
+## RHEL-Edge Test Scope1
 
 RHEL for Edge test from QE is more like an integration test. The test flow aligns with the customer scenario. The whole test includes three parts:
 
