@@ -1,13 +1,14 @@
 on:
   issues:
-    types: [opened]
+    types:
+      - opened
+
 jobs:
-  createCard:
+  add-to-project:
+    name: Add issue to project
     runs-on: ubuntu-latest
     steps:
-      - name: Create or Update Project Card
-        uses: peter-evans/create-or-update-project-card@v3
+      - uses: actions/add-to-project@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          project-name: pro111
-          column-name: RHEL-9-5
+          project-url: https://github.com/users/yih-redhat/projects/1
+          github-token: ${{ secrets.GITHUB_TOKEN }}
