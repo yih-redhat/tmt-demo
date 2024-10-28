@@ -11,6 +11,8 @@ jobs:
     if: github.repository == 'yih-redhat/tmt-demo'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v3
+
       - name: Create Pull Request
         id: cpr
         uses: peter-evans/create-pull-request@v4
@@ -38,4 +40,4 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           project-name: RHEL Compose Test
           column-name: RHEL-9-5
-          issue-number: RHEL-9-5-123456
+          issue-number: ${{ steps.cpr.outputs.pull-request-number }}
