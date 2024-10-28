@@ -1,0 +1,41 @@
+---
+name: Run Edge Test on RHEL 9.5.0
+
+on:
+  issue_comment:
+    types:
+      - created
+
+jobs:
+  rhel-9-5:
+    if: github.repository == 'yih-redhat/tmt-demo'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: RHEL-9-5-123456
+          committer: cloudkitebot <henrywangxf1@gmail.com>
+          author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
+          branch: cpr
+          branch-suffix: random
+          delete-branch: true
+          title: RHEL-9-5-123456
+          labels: auto-merge,RHEL-9.5.0
+          body: |
+            RHEL 9.5 compose 123456
+            - Date: ${{ steps.date.outputs.date }}
+            - Packages:
+                - p1
+                - p2
+                - p3
+
+      - name: Create a project card to track compose test result
+        uses: peter-evans/create-or-update-project-card@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          project-name: RHEL Compose Test
+          column-name: RHEL-9-5
+          issue-number: RHEL-9-5-123456
