@@ -8,5 +8,6 @@ jobs:
       - name: Create or Update Project Card
         uses: peter-evans/create-or-update-project-card@v3
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           project-name: pro111
           column-name: RHEL-9-5
